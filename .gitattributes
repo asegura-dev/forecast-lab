@@ -1,0 +1,11 @@
+# Normalise line endings to LF in the repository.
+#
+# With Windows `core.autocrlf`, git sees LF<->CRLF rewrites as local modifications
+# and *skips updating those files* on `git pull` - which can leave a new module
+# next to a stale one and produce an ImportError that looks like a code bug.
+# Normalising at the repo level stops the churn before it starts, and means no
+# machine needs `core.autocrlf false`.
+* text=auto eol=lf
+
+# CSV fixtures are text too, and must not be mangled by any filter.
+*.csv text eol=lf

@@ -1,0 +1,66 @@
+[project]
+name = "forecast-lab"
+version = "0.1.0"
+description = "Quantitative research on short-horizon market direction: a symbol-agnostic pipeline that measures what an experiment can resolve before it claims an edge."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Alejandro Segura" }]
+license = "MIT"
+dependencies = [
+    "pydantic>=2.7",  # validation at the boundary only (ADR-001 sec. 3)
+    "typer>=0.12",    # the CLI is the composition root
+    "rich>=13.7",     # console rendering
+]
+
+# The composition root: the only place allowed to import concrete adapters and to
+# touch the filesystem or the network (ADR-001 sec. 1).
+[project.scripts]
+forecast-lab = "forecast_lab.interfaces.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.2",
+    "ruff>=0.5",
+    "mypy>=1.10",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.12,<0.11.0"]
+build-backend = "uv_build"
+
+# Never adopt the machine's own Python (there is a Microsoft Store 3.13 on PATH):
+# the pin must mean the same thing on every box.
+[tool.uv]
+python-preference = "only-managed"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"  # aligned with .python-version / requires-python
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]                            # assert is the point of a test
+"src/forecast_lab/interfaces/cli.py" = ["B008"]  # typer.Option in defaults is the Typer idiom
+
+[tool.mypy]
+python_version = "3.12"  # aligned with .python-version / requires-python
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+
+# No [[tool.mypy.overrides]] yet: every dependency of this slice ships type
+# information. The block arrives with `ta` and the ML stack, which do not.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The gates stay hermetic: anything touching the network is opt-in.
+addopts = ["-m", "not network"]
+markers = [
+    "unit: engine unit tests (fast, no external I/O)",
+    "smoke: end-to-end pipeline over the synthetic fixture",
+    "regression: tests that pin a previously fixed bug",
+    "network: hits Dukascopy's public CDN; opt-in via `pytest -m network`",
+]
