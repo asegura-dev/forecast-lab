@@ -2,6 +2,26 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-19 - Ingestion, and a rule that real data refuted
+
+### Added
+
+- **The reading boundary** (`ingest/csv_reader.py`) - where a price series stops being bytes and starts being something the pipeline may trust. It parses UNIX epochs and ISO strings alike, normalises to timezone-aware UTC (a naive string is read as UTC, because reading it as local time would make the same file mean different things on two machines), sorts, and refuses what cannot be interpreted: a missing price column, an unparseable timestamp, a duplicated one. It never repairs. A repair this far upstream is a guess about what the venue meant, and the guess is invisible by the time it becomes a number in a report.
+- **Provenance** (`ingest/manifest.py`, `forecast-lab verify`) - a committed manifest recording SHA-256, byte size, row count and time span per file, while the data itself stays out of the repository. The hash is the point: editing one digit of one price leaves the file exactly as long, changes every number computed from it, and announces nothing. It is a command rather than a test, because a test reading `data/` would skip itself in a clean clone and report green while guaranteeing nothing.
+- **`forecast-lab ingest --from`** - validates an external directory and copies it in, reading every file *before* copying it so `data/` only ever holds series the rest of the pipeline may trust. Rejections are collected rather than raised on the first one: thirty files should not mean thirty round trips to learn about three problems.
+- **`forecast-lab fetch`** - downloads bars from the public venue with no API key, which is what makes every published number reproducible by anyone who clones the repository. It fetches **both sides of the book** and writes mid prices plus **the spread of each bar**, because the spread is the transaction cost and the break-even accuracy that decides whether any edge is worth having is computed from it. Measured on real gold bars it is 0.75 USD mid-session and **9.5 at the weekly open** - an order of magnitude a constant assumption would have hidden. Requests are chunked by year (a single request for eight years is silently truncated), paced politely, and a failure is per symbol rather than per run.
+- **Fifteen opt-in network tests** (`pytest -m network`) holding the venue to its side of the contract: that hourly bars still open exactly on the hour - the invariant the whole alignment design rests on - that both sides combine into a positive spread, that the spread is not constant, and that all twelve mapped instruments still exist. Excluded from the default gates, which stay hermetic.
+- **`forecast-lab symbols` now shows row counts**, read from the manifest rather than by re-opening 34 files. The cheap question stays cheap.
+
+### Changed
+
+- **The grid rule of [ADR-002 sec. 6](docs/adr/ADR-002-data-source-and-symbol-set.md), rewritten because the data refuted it.** The ADR originally specified rejecting any series sitting on more than two grid offsets. Run against the real exports, that rule rejected six legitimate files. The cause was not corruption: **SPX and NDX daily and 4-hour bars sit at three offsets and DXY at four**, because a US instrument quoted on a European trading calendar crosses two daylight-saving regimes that do not switch on the same weekend, and **SPX daily carries 1,305 gaps shorter than 24 hours** - short sessions, not overlapping bars, since a "day" is a session rather than a duration. The threshold was measuring the calendar, not a defect. Grid shape is now recorded (`SeriesMeta.anchors`, `SeriesMeta.short_gaps`) and reported by `ingest`, and the judgement moves to alignment, which is the only step that knows the target and the horizon - and where the real hazard lives anyway, since a daily auxiliary bar is still open when an hourly decision is taken, however clean both grids are.
+
+### Fixed
+
+- **Manifest keys collided between data roots.** Entries were recorded relative to each command's destination, so a reference import and a fetch both produced the key `XAUUSD_1H.csv` and the second would have erased the first - in the one file whose whole job is to remove that ambiguity. Paths are now relative to `data/`. The same collision then reappeared in the row-count lookup, where `symbols --dir data/raw` reported the reference series' 24,401 bars for a directory holding 240; found by running the command, not by a test.
+- **`pd.to_datetime` raises instead of yielding `NaT`** on an unparseable timestamp, so the reader's own check for missing values never ran. Caught by a test that asserted the project's error type and got pandas' instead.
+
 ## 2026-08-18 - The data source is measured before it is adopted, and the foundations are built
 
 ### Added

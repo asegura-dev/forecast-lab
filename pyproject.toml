@@ -10,6 +10,8 @@ dependencies = [
     "pydantic>=2.7",  # validation at the boundary only (ADR-001 sec. 3)
     "typer>=0.12",    # the CLI is the composition root
     "rich>=13.7",     # console rendering
+    "pandas>=2.2",    # bars and the feature matrix travel as DataFrames (ADR-001 sec. 3)
+    "dukascopy-python>=4.0",  # the public CDN behind `fetch` (ADR-002 sec. 1)
 ]
 
 # The composition root: the only place allowed to import concrete adapters and to
@@ -22,6 +24,7 @@ dev = [
     "pytest>=8.2",
     "ruff>=0.5",
     "mypy>=1.10",
+    "pandas-stubs>=2.2",  # pandas ships no type information of its own
 ]
 
 [build-system]
@@ -51,8 +54,11 @@ strict = true
 plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 
-# No [[tool.mypy.overrides]] yet: every dependency of this slice ships type
-# information. The block arrives with `ta` and the ML stack, which do not.
+# Third-party packages shipping no type information. Kept to the ones actually
+# imported: an override for a package we do not depend on is dead configuration.
+[[tool.mypy.overrides]]
+module = ["dukascopy_python.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

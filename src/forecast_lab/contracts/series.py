@@ -83,10 +83,18 @@ class SymbolSpec(BaseModel):
 class SeriesMeta(BaseModel):
     """What is known about one series without loading its bars.
 
-    ``anchors`` holds every distinct ``timestamp % timeframe.seconds`` observed in the
-    series. A clean hourly feed yields ``{0}``; a venue whose trading day shifts with
-    daylight saving time yields two values, and that is data rather than corruption
-    (ADR-002 sec. 5).
+    Two fields describe the grid rather than judging it, because measurement showed a
+    threshold could not tell a defect from a calendar (ADR-002 sec. 6):
+
+    - ``anchors`` - every distinct ``timestamp % timeframe.seconds`` observed. A clean
+      hourly feed yields ``{0}``. A US index quoted by a European venue yields three,
+      because the two daylight-saving calendars do not switch on the same weekend.
+    - ``short_gaps`` - consecutive bars closer together than one nominal interval. On a
+      daily series this counts short sessions, not overlaps: a "day" is a session, not
+      24 hours.
+
+    Neither is an error here. Whether they matter depends on the target and the horizon,
+    which only alignment knows.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -97,6 +105,7 @@ class SeriesMeta(BaseModel):
     first: datetime | None = None
     last: datetime | None = None
     anchors: frozenset[int] = frozenset()
+    short_gaps: int = Field(default=0, ge=0)
 
     @field_validator("first", "last", mode="after")
     @classmethod

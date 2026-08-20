@@ -17,6 +17,12 @@ Only files that exist today are listed. The book grows one line at a time, as ea
 |------|------------------|
 | [2026-08-18 - Dukascopy probe](status/STATUS-2026-08-dukascopy-probe.md) | The five questions answered before adopting a data source: instrument existence, coverage, history depth, grid anchor, and the go/no-go against the reference exports. **Verdict: GO** - same instrument, clean UTC grid, and volume the reference lacks. Also the finding that reshaped the symbol set: VIX hourly history starts only in 2022-10, so keeping it costs 28,136 bars to buy a feature whose correlation with the target is zero. Realised volatility substitutes for its *level* (+0.75) but not for its *changes* (0.00). |
 
+## Data provenance (`docs/status/`)
+
+| File | What's in it |
+|------|--------------|
+| [data-manifest.json](status/data-manifest.json) | SHA-256, byte size, row count and time span for every series file under `data/`. Committed while the data is not, because the data is regenerable but "regenerable" is not "identical": a venue can revise a bar and a file can be edited, and without a hash a result and its inputs drift apart silently. Checked with `forecast-lab verify`. |
+
 ## Guides (`docs/guides/`)
 
 | File | What's in it |

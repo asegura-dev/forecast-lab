@@ -98,7 +98,8 @@ Early. The decisions are documented and the foundations are in place; the engine
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
-- [ ] Ingestion, provenance manifest, and `fetch`
+- [x] Reading boundary, provenance manifest, `ingest` and `verify`
+- [x] `fetch`: both offer sides, with the per-bar spread
 - [ ] Target-anchored alignment (the correction at the heart of the re-analysis)
 - [ ] Features with an enforced stationarity policy
 - [ ] Walk-forward validation, baselines, and the power analysis
