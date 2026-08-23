@@ -39,6 +39,7 @@ from forecast_lab.ingest import (
     write_series,
 )
 from forecast_lab.ingest.importer import ImportReport
+from forecast_lab.research import align_to_target
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 console = Console()
@@ -209,6 +210,83 @@ def _requested_symbols(raw: str) -> list[SymbolSpec]:
     """Parse the --symbols option into validated symbols."""
     names = DEFAULT_SYMBOLS if raw.strip().lower() == "all" else raw.split(",")
     return [SymbolSpec(name=n.strip().upper()) for n in names if n.strip()]
+
+
+@app.command("align")
+def align_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol whose bars define the timeline.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_DATA_DIR,
+    max_staleness: Annotated[
+        int,
+        typer.Option("--max-staleness", help="Drop a carried value older than this, in seconds."),
+    ] = 0,
+) -> None:
+    """Put every symbol on the target's timeline, and report what had to be carried."""
+    # The correction at the centre of the re-analysis: the target's own bars are the
+    # timeline, so no row exists that the target did not trade. The original pipeline
+    # outer-joined and forward-filled, which invented 1,251 gold bars and flipped which
+    # class was the majority.
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        catalogue = scan(directory)
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    wanted = [s for s in catalogue.series if s.timeframe is interval]
+    if not any(s.symbol == spec for s in wanted):
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    # The CLI reads the disk; research receives frames and never learns where they came
+    # from (ADR-001 sec. 1).
+    series = {}
+    for item in wanted:
+        frame, _ = read_series(item.path, item.symbol, item.timeframe)
+        series[item.symbol.name] = frame
+
+    try:
+        panel = align_to_target(
+            spec.name,
+            series,
+            interval,
+            max_staleness_seconds=max_staleness or None,
+        )
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    console.print(
+        f"Timeline: [bold]{panel.rows:,}[/bold] bars of {panel.target} at {interval.value}, "
+        f"{panel.frame.index[0]:%Y-%m-%d} to {panel.frame.index[-1]:%Y-%m-%d}"
+    )
+
+    table = Table()
+    table.add_column("Symbol")
+    table.add_column("Missing", justify="right")
+    table.add_column("Carried", justify="right")
+    table.add_column("Oldest", justify="right")
+    for cover in panel.coverage:
+        oldest = f"{cover.max_stale_seconds / 3600:.0f}h" if cover.max_stale_seconds else "-"
+        table.add_row(
+            cover.symbol,
+            f"{cover.missing:,} ({cover.missing_fraction:.1%})" if cover.missing else "-",
+            f"{cover.stale:,} ({cover.stale_fraction:.1%})" if cover.stale else "-",
+            oldest,
+        )
+    console.print(table)
+    console.print(
+        f"{len(panel.frame.columns)} columns. "
+        f"No row exists that {panel.target} did not trade."
+    )
 
 
 @app.command("ingest")

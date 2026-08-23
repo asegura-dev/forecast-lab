@@ -45,7 +45,9 @@ ALLOWED: dict[str, frozenset[str]] = {
 # Names that mean "this module reaches for data". Matched on the syntax tree rather
 # than on raw text, so prose in a docstring describing the rule cannot trip it.
 IO_CALLS = frozenset({"open", "urlopen"})
-IO_ATTRS = frozenset({"read_csv", "read_parquet", "read_json", "glob", "rglob", "iterdir", "get"})
+# `.get` is deliberately absent: `dict.get` is everywhere, and flagging it would train
+# everyone to ignore this guard. HTTP clients are caught by their import instead.
+IO_ATTRS = frozenset({"read_csv", "read_parquet", "read_json", "glob", "rglob", "iterdir"})
 IO_MODULES = frozenset({"requests", "httpx", "urllib", "pathlib", "csv", "sqlite3"})
 
 

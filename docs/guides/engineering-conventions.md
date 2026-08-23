@@ -8,9 +8,11 @@ No change is finished until all three are green:
 
 ```bash
 uv run ruff check src tests
-uv run mypy --strict src tests
-uv run pytest -q
+uv run python -m mypy --strict src tests
+uv run python -m pytest -q
 ```
+
+The two `python -m` are not decoration. Windows Smart App Control blocks the console scripts and, worse, the mypyc-compiled extensions inside the mypy wheel, with `DLL load failed: an application control policy blocked this file`. That silently removes a gate on any machine with it enabled, so `pyproject.toml` builds mypy from source (`no-binary-package`). Type checking gets roughly three times slower, which on a project this size is invisible; a gate that does not run is not.
 
 ## Architecture - four layers, one arrow inward
 
@@ -58,7 +60,7 @@ Cross-references use **"Ch. N sec. M"** and **"ADR-00N sec. M"**. There is no do
 
 ## Language
 
-English for everything shipped: code, docstrings, documentation, the changelog, and the output of the CLI. Commit messages are in Spanish.
+English for everything shipped, commit messages included. The log is read by whoever opens the repository - GitHub shows the newest commit message above the file list - so a message that explains a decision is only worth writing in a language its reader has.
 
 ## Epistemic rules
 

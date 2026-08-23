@@ -70,14 +70,31 @@ Data is **not** committed - it is regenerable. Nothing else works until you fetc
 ```bash
 uv run forecast-lab fetch     # public CDN, no API key, no registration
 uv run forecast-lab symbols   # what is now available on disk
+uv run forecast-lab verify    # does it still match the committed manifest?
+```
+
+Then put several symbols on one timeline, anchored to the one being predicted:
+
+```bash
+uv run forecast-lab align --target XAUUSD --timeframe 1H
+```
+
+It reports what had to be carried forward and how old it was, per symbol - which is the
+difference between "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hours ago".
+
+To reproduce the baseline this project corrects, point `ingest` at the original
+project's exports; they are read once and never feed the engine:
+
+```bash
+uv run forecast-lab ingest --from <path to the exports>
 ```
 
 The three quality gates, which every change must leave green:
 
 ```bash
 uv run ruff check src tests
-uv run mypy --strict src tests
-uv run pytest -q
+uv run python -m mypy --strict src tests
+uv run python -m pytest -q
 ```
 
 ## Documentation
@@ -94,13 +111,13 @@ Written as a research book: each document exists because a decision was made, an
 
 ## Status
 
-Early. The decisions are documented and the foundations are in place; the engine is not built yet.
+Early, and honest about it. Data gets in, gets verified, and gets onto one timeline without a fabricated row; nothing is modelled yet. The order is deliberate - the original analysis went wrong before any model was fitted.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
 - [x] Reading boundary, provenance manifest, `ingest` and `verify`
 - [x] `fetch`: both offer sides, with the per-bar spread
-- [ ] Target-anchored alignment (the correction at the heart of the re-analysis)
+- [x] Target-anchored alignment (the correction at the heart of the re-analysis)
 - [ ] Features with an enforced stationarity policy
 - [ ] Walk-forward validation, baselines, and the power analysis
 - [ ] Models, the evaluation battery, and the verdict

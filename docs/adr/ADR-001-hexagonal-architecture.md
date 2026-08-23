@@ -1,6 +1,6 @@
 # ADR-001 - Four layers, one arrow inward, and the ports we deliberately do not build
 
-- **Status:** Accepted - **built** as far as the skeleton goes: `contracts`, the layering guard and the CLI exist and the three gates are green. The `research` layer is declared in the dependency table but has no modules yet, so the rule forbidding it to read data is enforced by a test that currently skips.
+- **Status:** Accepted - **built**. All four layers exist, the three gates are green, and every rule below is enforced by a test rather than by convention - including the one forbidding `research` to reach for data, which became a live gate when that layer gained its first module (ADR-003).
 - **Date:** 2026-08-17
 - **Context:** This repository re-engineers a notebook pipeline that predicts short-horizon market direction. The notebook's failures were not failures of algorithm choice - they were failures of **structure**: a merge that fabricated rows, features computed after alignment, model selection that read the test set, evaluation entangled with training. Every one of those is invisible in a linear script and mechanically preventable once the pieces have names and the dependencies point one way. The question this ADR settles is how much structure the project has actually earned: enough to make those failures impossible, and no more.
 
@@ -90,7 +90,7 @@ Phase 1 has no secrets and one path, so there is no settings module yet. When on
 
 **Built (2026-08-18):** `contracts/` with `Timeframe`, `SymbolSpec`, `SeriesMeta` and the error hierarchy; `ingest/catalog.py`; `interfaces/cli.py` with the `symbols` command; `tests/test_layering.py` enforcing the dependency table and both holes of sec. 4. Three gates green, 52 tests passing.
 
-**Not built:** the `research` layer has no modules yet, so `test_research_never_reaches_for_data` skips. It becomes a real gate the moment the first research module lands, which is slice 3.
+**Live since 2026-08-22:** `research` gained its first module (ADR-003), so `test_research_never_reaches_for_data` stopped skipping and started enforcing. It immediately earned its keep in an unexpected direction - its list of I/O calls included `get`, which would have flagged every `dict.get` in the layer. A guard that cries wolf on ordinary code trains everyone to ignore it, so HTTP clients are now caught by their import instead.
 
 **What building it taught, recorded because it is the kind of thing that gets re-learned:** the layering guard and the contract tests all passed while the CLI itself was broken - a Typer application holding a single command collapses into a bare command, so `forecast-lab symbols` failed with "unexpected extra argument". Fifty-two green tests said nothing about it. Running the thing is a separate act from testing it, and the acceptance criterion for every slice includes a real invocation for that reason.
 

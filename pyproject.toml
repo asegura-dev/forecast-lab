@@ -35,6 +35,13 @@ build-backend = "uv_build"
 # the pin must mean the same thing on every box.
 [tool.uv]
 python-preference = "only-managed"
+# Build mypy from source instead of taking its wheel. The published wheel ships
+# mypyc-compiled .pyd extensions, and Windows Smart App Control blocks them outright -
+# "DLL load failed: an application control policy blocked this file" - which silently
+# removes one of the three gates on any machine with it enabled. The source build costs
+# a few seconds at install time and makes type checking roughly three times slower,
+# which on a project this size is invisible. A gate that does not run is worse.
+no-binary-package = ["mypy"]
 
 [tool.ruff]
 line-length = 100

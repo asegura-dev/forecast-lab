@@ -2,6 +2,26 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-22 - The target bars become the timeline
+
+### Added
+
+- **[ADR-003](docs/adr/ADR-003-target-anchored-alignment.md) and `research/align.py`** - the correction at the centre of the re-analysis. The target's own bars define the timeline and nothing else may extend it; auxiliary symbols are read onto it by carrying their last known value forward, which is legitimate because that value *was* the last thing known at that instant. The original pipeline outer-joined every symbol and forward-filled, inventing a row at every timestamp any symbol traded - and on the hours when the currencies were open and gold was not, gold's close became a copy of the previous bar. Measured on the real exports: 24,430 rows against 23,180, and 1,288 exact ties against 38. The forward fill **never creates an UP**, so all of it lands on one side and **flips which class is the majority** - the corrupted data says gold falls 51.47% of the time while the real series says it rises 51.15%. Every model was compared against a baseline that did not exist.
+- **A regression test pinning the identity behind the damage**: each fabricated row adds exactly one tie. On the real data that reads 24,430 - 23,180 = 1,250 and 1,288 - 38 = 1,250. It runs on synthetic bars, because a test needing 19 MB of vendor data is a test that stops being run.
+- **Per-symbol staleness.** Forward-filling is honest; losing track of how old the value is, is not - "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hours ago" are different statements. One column per auxiliary, because the spread across symbols is too wide for a single number to describe: VIX is carried on 8.0% of rows and DXY on 7.1%, while the currencies stay under 0.2%. An optional `max_staleness` drops a value instead of letting Friday's close masquerade as a Monday price for 65 hours.
+- **`forecast-lab align`**, which reports what had to be carried. On the reference panel: 23,181 rows, 59 columns, crypto absent from 25.5% of them because it starts a year late.
+
+### Changed
+
+- **Mixing timeframes is now refused, loudly.** A daily bar carried onto an hourly row has not closed when that hour's decision is taken, so its close describes hours that have not happened. This is the judgement ADR-002 sec. 6 deliberately left to alignment, the only step that knows the target and its interval.
+- **Commit messages move to English.** The log is read by whoever opens the repository, and GitHub shows the newest message above the file list; a message that explains a decision is only worth writing in a language its reader has.
+
+### Fixed
+
+- **Staleness was computed a thousand times too small.** The integer view of a `DatetimeIndex` is in whatever resolution pandas chose - nanoseconds for the reference series, milliseconds for the fetched ones - so a fixed divisor was right for one and wrong for the other. Subtracting the timestamps and asking the result for seconds is resolution-independent. Caught by a test that asserted a two-hour gap and got seven seconds.
+- **The layering guard would have flagged every `dict.get`.** Its list of I/O calls included `get`, which is ubiquitous; a guard that cries wolf on ordinary code trains everyone to ignore it. HTTP clients are caught by their import instead. Found the moment `research/` first existed and the guard stopped skipping.
+- **mypy no longer runs on this platform** unless built from source: Windows Smart App Control blocks the mypyc-compiled extensions in its wheel, silently removing one of the three gates. `pyproject.toml` now pins a source build.
+
 ## 2026-08-19 - Ingestion, and a rule that real data refuted
 
 ### Added
