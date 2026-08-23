@@ -24,6 +24,8 @@ With 1,547 of 2,983 test bars going up, **always predicting UP scores 51.86%**. 
 
 That is not a story about one careless project. It is what happens when a pipeline has no baseline, no power analysis, and no separation between choosing a model and testing it. This repository rebuilds the experiment so those three things are impossible to skip.
 
+**And it computes its own version of the number rather than only quoting that one.** `forecast-lab baseline` runs the corrected pipeline end to end and reports what a model would have to beat: on the test block, always-UP scores **51.46%** with 100% recall and **0.00% specificity** - the signature of a constant wearing a model's clothes - while a seeded coin flip scores **51.70%**, above it. Break-even against the friendliest cost assumption is 51.92%; nothing available without a model reaches it. The full run is in [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md), which also says which figures this repository computes and which it merely quotes.
+
 ## What this is, and is not
 
 **It is** a reproducible measurement instrument: fetch public data, build features that survive a temporal split, and evaluate a prediction against baselines, transaction costs, and the honest question of whether the sample can detect the effect at all.
@@ -82,6 +84,16 @@ uv run forecast-lab align --target XAUUSD --timeframe 1H
 It reports what had to be carried forward and how old it was, per symbol - which is the
 difference between "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hours ago".
 
+Then label the target, cut the timeline, and score the rules a model has to beat:
+
+```bash
+uv run forecast-lab baseline --target XAUUSD --timeframe 1H
+uv run forecast-lab baseline --target XAUUSD --timeframe 1H --json
+```
+
+Every command that produces a result offers `--json`, because the dashboard is going to
+run these commands rather than reimplement them ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)).
+
 To reproduce the baseline this project corrects, point `ingest` at the original
 project's exports; they are read once and never feed the engine:
 
@@ -106,22 +118,27 @@ Written as a research book: each document exists because a decision was made, an
 | [Engineering conventions](docs/guides/engineering-conventions.md) | The rules, and why each exists |
 | [ADR-001](docs/adr/ADR-001-hexagonal-architecture.md) | The architecture, and the abstractions deliberately not built |
 | [ADR-002](docs/adr/ADR-002-data-source-and-symbol-set.md) | The data source and the symbol set |
+| [ADR-003](docs/adr/ADR-003-target-anchored-alignment.md) | The target's bars are the timeline, and nothing may extend it |
+| [ADR-004](docs/adr/ADR-004-labels-splits-and-baselines.md) | What a bar's answer is, where the boundaries fall, and what a model must beat |
+| [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) | The dashboard runs the CLI rather than reimplementing it (**Plan**) |
 | [STATUS 2026-08-18](docs/status/STATUS-2026-08-dukascopy-probe.md) | The data probe: instrument identity confirmed, and why VIX was dropped |
+| [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md) | The baseline recomputed from data, and the 59% of gaps nobody had measured |
 | [CHANGELOG](CHANGELOG.md) | Notable changes, newest first |
 
 ## Status
 
-Early, and honest about it. Data gets in, gets verified, and gets onto one timeline without a fabricated row; nothing is modelled yet. The order is deliberate - the original analysis went wrong before any model was fitted.
+Early, and honest about it. Data gets in, gets verified, gets onto one timeline without a fabricated row, and gets labelled and scored against the rules a model has to beat; nothing is modelled yet. The order is deliberate - the original analysis went wrong before any model was fitted.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
 - [x] Reading boundary, provenance manifest, `ingest` and `verify`
 - [x] `fetch`: both offer sides, with the per-bar spread
 - [x] Target-anchored alignment (the correction at the heart of the re-analysis)
+- [x] Labels on an explicit horizon, a purged chronological split, and the three baselines
 - [ ] Features with an enforced stationarity policy
-- [ ] Walk-forward validation, baselines, and the power analysis
+- [ ] Walk-forward validation, the cost model, and the power analysis
 - [ ] Models, the evaluation battery, and the verdict
-- [ ] Dashboard
+- [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 
 ## Origin and scope of the re-analysis
 

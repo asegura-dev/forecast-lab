@@ -16,11 +16,40 @@ from forecast_lab.research.align import (
     SymbolAlignment,
     align_to_target,
 )
+from forecast_lab.research.baselines import (
+    DEFAULT_SEED,
+    BaselineError,
+    BaselineReport,
+    Score,
+    evaluate_baselines,
+)
+from forecast_lab.research.labeling import (
+    Direction,
+    LabelingError,
+    LabelReport,
+    label_direction,
+    rolling_dead_band,
+)
+from forecast_lab.research.splitting import Block, SplitError, TemporalSplit, temporal_split
 
 __all__ = [
+    "DEFAULT_SEED",
     "STALENESS_SUFFIX",
     "AlignedPanel",
     "AlignmentError",
+    "BaselineError",
+    "BaselineReport",
+    "Block",
+    "Direction",
+    "LabelReport",
+    "LabelingError",
+    "Score",
+    "SplitError",
     "SymbolAlignment",
+    "TemporalSplit",
     "align_to_target",
+    "evaluate_baselines",
+    "label_direction",
+    "rolling_dead_band",
+    "temporal_split",
 ]

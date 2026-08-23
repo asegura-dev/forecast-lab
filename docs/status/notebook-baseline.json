@@ -1,0 +1,125 @@
+{
+  "symbol": "XAUUSD",
+  "timeframe": "1H",
+  "horizon": 1,
+  "labels": {
+    "rows": 23181,
+    "labelled": 22167,
+    "up": 11257,
+    "down": 10874,
+    "flat": 36,
+    "gapped": 1013,
+    "gapped_up": 600,
+    "gapped_down": 411,
+    "up_rate": 0.5086530206497673,
+    "gapped_up_rate": 0.5934718100890207
+  },
+  "blocks": [
+    {
+      "name": "train",
+      "rows": 16225,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2024-09-27T09:00:00+00:00",
+      "up_rate": 0.5040041332988892,
+      "train_up_rate": 0.5040041332988892,
+      "oracle_gap": 0.0,
+      "baselines": [
+        {
+          "rule": "majority-class (UP, from train)",
+          "n": 15484,
+          "accuracy": 0.5040041332988892,
+          "precision": 0.5040041332988892,
+          "recall": 1.0,
+          "specificity": 0.0
+        },
+        {
+          "rule": "persistence",
+          "n": 15484,
+          "accuracy": 0.491539653836218,
+          "precision": 0.4955786236063053,
+          "recall": 0.49551512045105073,
+          "specificity": 0.4875
+        },
+        {
+          "rule": "random (train frequencies)",
+          "n": 15484,
+          "accuracy": 0.4928958925342289,
+          "precision": 0.4969151670951157,
+          "recall": 0.4953869810353665,
+          "specificity": 0.4903645833333333
+        }
+      ]
+    },
+    {
+      "name": "validation",
+      "rows": 3476,
+      "first": "2024-09-27T11:00:00+00:00",
+      "last": "2025-05-02T01:00:00+00:00",
+      "up_rate": 0.5240818783865141,
+      "train_up_rate": 0.5040041332988892,
+      "oracle_gap": 0.020077745087624943,
+      "baselines": [
+        {
+          "rule": "majority-class (UP, from train)",
+          "n": 3322,
+          "accuracy": 0.5240818783865141,
+          "precision": 0.5240818783865141,
+          "recall": 1.0,
+          "specificity": 0.0
+        },
+        {
+          "rule": "persistence",
+          "n": 3322,
+          "accuracy": 0.4921733895243829,
+          "precision": 0.5155172413793103,
+          "recall": 0.5152211372774268,
+          "specificity": 0.4667931688804554
+        },
+        {
+          "rule": "random (train frequencies)",
+          "n": 3322,
+          "accuracy": 0.5009030704394943,
+          "precision": 0.5256965944272446,
+          "recall": 0.4876507754164273,
+          "specificity": 0.5154965211891208
+        }
+      ]
+    },
+    {
+      "name": "test",
+      "rows": 3478,
+      "first": "2025-05-02T03:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "up_rate": 0.514595245260307,
+      "train_up_rate": 0.5040041332988892,
+      "oracle_gap": 0.01059111196141782,
+      "baselines": [
+        {
+          "rule": "majority-class (UP, from train)",
+          "n": 3323,
+          "accuracy": 0.514595245260307,
+          "precision": 0.514595245260307,
+          "recall": 1.0,
+          "specificity": 0.0
+        },
+        {
+          "rule": "persistence",
+          "n": 3323,
+          "accuracy": 0.49322900993078544,
+          "precision": 0.5076023391812865,
+          "recall": 0.5076023391812865,
+          "specificity": 0.47799132052076876
+        },
+        {
+          "rule": "random (train frequencies)",
+          "n": 3323,
+          "accuracy": 0.5170027083960277,
+          "precision": 0.5325077399380805,
+          "recall": 0.5029239766081871,
+          "specificity": 0.5319280843149411
+        }
+      ]
+    }
+  ],
+  "purged": 2
+}

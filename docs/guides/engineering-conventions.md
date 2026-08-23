@@ -28,6 +28,7 @@ interfaces --+--> ingest ----+
 2. **`research` never reaches for data.** No `open`, no `read_csv`, no `Path.glob`, no HTTP client. It receives DataFrames and does not know where they came from. A research layer that can quietly re-read the world produces experiments that cannot be reproduced from stored inputs - and a result that cannot be reproduced cannot be falsified.
 3. **The CLI is the only composition root.** The only place that imports concrete implementations, and the only place that touches the filesystem or the network.
 4. **No `.py` at the package root** except `__init__.py`. A module there sits outside the layering guard, which is precisely where a dependency leak hides.
+5. **Every command that produces a result offers `--json`**, built by a dedicated payload function rather than scattered through print statements. The dashboard runs these commands instead of reimplementing them ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md)), and scraping a Rich table would break on the first column that got wider - silently, because a truncated number is still a number.
 
 The first three are enforced by [`tests/test_layering.py`](../../tests/test_layering.py). A reviewer forgets on a Friday; a gate does not.
 

@@ -16,8 +16,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
+import pandas as pd
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -39,7 +40,12 @@ from forecast_lab.ingest import (
     write_series,
 )
 from forecast_lab.ingest.importer import ImportReport
-from forecast_lab.research import align_to_target
+from forecast_lab.research import (
+    align_to_target,
+    evaluate_baselines,
+    label_direction,
+    temporal_split,
+)
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 console = Console()
@@ -287,6 +293,175 @@ def align_command(
         f"{len(panel.frame.columns)} columns. "
         f"No row exists that {panel.target} did not trade."
     )
+
+
+@app.command("baseline")
+def baseline_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol to label and score.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    horizon: Annotated[int, typer.Option("--horizon", help="Bars ahead to predict.")] = 1,
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_REFERENCE_DIR,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
+) -> None:
+    """Score the rules a model must beat: majority class, persistence and chance."""
+    # This exists because of one measurement. The original analysis reported 51.53%
+    # accuracy as evidence that ML beats chance on hourly gold - while its own class
+    # support showed that predicting UP every time scores 51.86%. The celebrated model
+    # lost to the most trivial rule there is, and nothing was arranged to notice.
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        catalogue = scan(directory)
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    match = [s for s in catalogue.series if s.symbol == spec and s.timeframe is interval]
+    if not match:
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    frame, _ = read_series(match[0].path, spec, interval)
+
+    try:
+        labels, report = label_direction(frame["close"], interval, horizon=horizon)
+        split = temporal_split(pd.DatetimeIndex(labels.index), horizon=horizon)
+        blocks = {
+            block.name: evaluate_baselines(
+                labels.loc[split.train.index, "label"],
+                labels.loc[block.index, "label"],
+                block=block.name,
+            )
+            for block in split.blocks
+        }
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    if as_json:
+        payload = _baseline_payload(spec.name, interval, horizon, report, split, blocks)
+        console.print_json(data=payload)
+        return
+
+    console.print(
+        f"[bold]{spec}[/bold] at {interval.value}, horizon {horizon}: "
+        f"{report.labelled:,} of {report.rows:,} bars labelled"
+    )
+    console.print(
+        f"[dim]{report.gapped:,} ({report.gapped_fraction:.2%}) skipped: the horizon spans a gap, "
+        f"so the answer would describe a longer stretch than it claims.[/dim]"
+    )
+    console.print(f"[dim]{report.flat:,} flat (exact ties), kept out of the direction.[/dim]")
+    if report.gapped:
+        # Printed rather than discarded. Those bars are what a positional shift folds
+        # silently into the headline number, and if they behave differently then any
+        # metric computed over the mixture is averaging two prediction problems.
+        console.print(
+            f"[dim]Across those gaps price rose {report.gapped_up_rate:.2%} of the time, "
+            f"against {report.up_rate:.2%} across the stated horizon.[/dim]"
+        )
+
+    table = Table()
+    table.add_column("Block")
+    table.add_column("Bars", justify="right")
+    table.add_column("Period")
+    table.add_column("UP rate", justify="right")
+    for block in split.blocks:
+        rep = blocks[block.name]
+        span = f"{block.first:%Y-%m-%d} to {block.last:%Y-%m-%d}" if block.first else "-"
+        table.add_row(block.name, f"{rep.n:,}", span, f"{rep.up_rate:.2%}")
+    console.print(table)
+
+    for name in ("validation", "test"):
+        rep = blocks[name]
+        scores = Table(title=f"Baselines on {name}", title_justify="left")
+        scores.add_column("Rule")
+        scores.add_column("Accuracy", justify="right")
+        scores.add_column("Precision", justify="right")
+        scores.add_column("Recall", justify="right")
+        scores.add_column("Specificity", justify="right")
+        for item in rep.scores:
+            scores.add_row(
+                item.name,
+                f"{item.accuracy:.2%}",
+                f"{item.precision:.2%}",
+                f"{item.recall:.2%}",
+                f"{item.specificity:.2%}",
+            )
+        console.print(scores)
+        if rep.oracle_gap > 0.005:
+            console.print(
+                f"[yellow]The {name} block's own UP rate is {rep.up_rate:.2%} against train's "
+                f"{rep.train_up_rate:.2%}.[/yellow] A rule fitted on this block instead of on "
+                f"train would gain {rep.oracle_gap:.2%} for free - which is the trap the "
+                "original analysis fell into."
+            )
+
+
+def _baseline_payload(
+    symbol: str,
+    interval: Timeframe,
+    horizon: int,
+    report: Any,
+    split: Any,
+    blocks: Any,
+) -> dict[str, Any]:
+    """The same result, shaped for a machine.
+
+    The dashboard runs these commands rather than reimplementing them (ADR-005), so
+    every command that produces a result offers it as JSON. Parsing a rendered table
+    would couple the dashboard to a presentation detail, and the first column-width
+    change would break it silently.
+    """
+    return {
+        "symbol": symbol,
+        "timeframe": interval.value,
+        "horizon": horizon,
+        "labels": {
+            "rows": report.rows,
+            "labelled": report.labelled,
+            "up": report.up,
+            "down": report.down,
+            "flat": report.flat,
+            "gapped": report.gapped,
+            "gapped_up": report.gapped_up,
+            "gapped_down": report.gapped_down,
+            "up_rate": report.up_rate,
+            "gapped_up_rate": report.gapped_up_rate,
+        },
+        "blocks": [
+            {
+                "name": block.name,
+                "rows": block.rows,
+                "first": block.first.isoformat() if block.first else None,
+                "last": block.last.isoformat() if block.last else None,
+                "up_rate": blocks[block.name].up_rate,
+                "train_up_rate": blocks[block.name].train_up_rate,
+                "oracle_gap": blocks[block.name].oracle_gap,
+                "baselines": [
+                    {
+                        "rule": s.name,
+                        "n": s.n,
+                        "accuracy": s.accuracy,
+                        "precision": s.precision,
+                        "recall": s.recall,
+                        "specificity": s.specificity,
+                    }
+                    for s in blocks[block.name].scores
+                ],
+            }
+            for block in split.blocks
+        ],
+        "purged": split.purged,
+    }
 
 
 @app.command("ingest")
