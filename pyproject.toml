@@ -12,6 +12,13 @@ dependencies = [
     "rich>=13.7",     # console rendering
     "pandas>=2.2",    # bars and the feature matrix travel as DataFrames (ADR-001 sec. 3)
     "dukascopy-python>=4.0",  # the public CDN behind `fetch` (ADR-002 sec. 1)
+    # Pinned exactly, and the only dependency that is. `ta` changes indicator values
+    # between releases, so an upgrade would silently move every published number
+    # without touching a line of our code. `uv.lock` already pins for anyone running
+    # `uv sync`, but a routine `uv lock --upgrade` would walk straight past it; the
+    # exact pin makes that a decision someone has to take on purpose.
+    "ta==0.11.0",
+    "statsmodels>=0.14",  # ADF and KPSS, reported as diagnostics (ADR-006 sec. 3)
 ]
 
 # The composition root: the only place allowed to import concrete adapters and to
@@ -64,7 +71,7 @@ files = ["src", "tests"]
 # Third-party packages shipping no type information. Kept to the ones actually
 # imported: an override for a package we do not depend on is dead configuration.
 [[tool.mypy.overrides]]
-module = ["dukascopy_python.*"]
+module = ["dukascopy_python.*", "ta.*", "statsmodels.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

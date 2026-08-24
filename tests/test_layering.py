@@ -193,3 +193,37 @@ def test_research_never_reaches_for_data() -> None:
         "research must not read from disk or the network; the CLI loads the data and "
         f"passes frames in (ADR-001 sec. 4). Found: {offenders}"
     )
+
+
+#: The one module allowed to import `ta`. It ships no type information, so every symbol
+#: crossing this boundary arrives as `Any` - and `Any` spreading through a codebase takes
+#: the type checker's guarantees with it wherever it goes.
+TA_QUARANTINE = "research/features/technical.py"
+
+
+@pytest.mark.unit
+def test_the_untyped_indicator_library_stays_in_one_module() -> None:
+    """`ta` is quarantined (ADR-006, Consequences).
+
+    `mypy --strict` is one of the three gates, and it is only worth having while the
+    untyped surface is small enough to audit. Confining `ta` to a single wrapper means
+    the rest of `research` is checked for real rather than nominally.
+    """
+    offenders: list[str] = []
+    for module in sorted(SRC.rglob("*.py")):
+        where = module.relative_to(SRC).as_posix()
+        if where.endswith(TA_QUARANTINE):
+            continue
+        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Import) and any(
+                a.name == "ta" or a.name.startswith("ta.") for a in node.names
+            )) or (isinstance(node, ast.ImportFrom) and (
+                node.module == "ta" or (node.module or "").startswith("ta.")
+            )):
+                offenders.append(f"{where}:{node.lineno}")
+
+    assert not offenders, (
+        f"`ta` may only be imported by {TA_QUARANTINE} (ADR-006, Consequences). "
+        f"Found: {offenders}"
+    )

@@ -88,7 +88,7 @@ Then label the target, cut the timeline, and score the rules a model has to beat
 
 ```bash
 uv run forecast-lab baseline --target XAUUSD --timeframe 1H
-uv run forecast-lab baseline --target XAUUSD --timeframe 1H --json
+uv run forecast-lab features --target XAUUSD --timeframe 1H --mode whole
 ```
 
 Every command that produces a result offers `--json`, because the dashboard is going to
@@ -115,14 +115,17 @@ Written as a research book: each document exists because a decision was made, an
 
 | | |
 |---|---|
+| [RUNBOOK](docs/guides/RUNBOOK-getting-started.md) | **Start here to run it**: fresh clone to feature matrix, and what to do when a step fails |
 | [Engineering conventions](docs/guides/engineering-conventions.md) | The rules, and why each exists |
 | [ADR-001](docs/adr/ADR-001-hexagonal-architecture.md) | The architecture, and the abstractions deliberately not built |
 | [ADR-002](docs/adr/ADR-002-data-source-and-symbol-set.md) | The data source and the symbol set |
 | [ADR-003](docs/adr/ADR-003-target-anchored-alignment.md) | The target's bars are the timeline, and nothing may extend it |
 | [ADR-004](docs/adr/ADR-004-labels-splits-and-baselines.md) | What a bar's answer is, where the boundaries fall, and what a model must beat |
 | [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) | The dashboard runs the CLI rather than reimplementing it (**Plan**) |
+| [ADR-006](docs/adr/ADR-006-features-and-stationarity.md) | Indicators before alignment, and no column that carries a price |
 | [STATUS 2026-08-18](docs/status/STATUS-2026-08-dukascopy-probe.md) | The data probe: instrument identity confirmed, and why VIX was dropped |
 | [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md) | The baseline recomputed from data, and the 59% of gaps nobody had measured |
+| [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) | The feature matrix, and a guard that real data corrected twice |
 | [CHANGELOG](CHANGELOG.md) | Notable changes, newest first |
 
 ## Status
@@ -135,7 +138,7 @@ Early, and honest about it. Data gets in, gets verified, gets onto one timeline 
 - [x] `fetch`: both offer sides, with the per-bar spread
 - [x] Target-anchored alignment (the correction at the heart of the re-analysis)
 - [x] Labels on an explicit horizon, a purged chronological split, and the three baselines
-- [ ] Features with an enforced stationarity policy
+- [x] Features with an enforced stationarity policy, checked by rescaling rather than by name
 - [ ] Walk-forward validation, the cost model, and the power analysis
 - [ ] Models, the evaluation battery, and the verdict
 - [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)

@@ -41,9 +41,18 @@ from forecast_lab.ingest import (
 )
 from forecast_lab.ingest.importer import ImportReport
 from forecast_lab.research import (
+    LONGEST_WINDOW,
+    FeatureMatrix,
+    Mode,
+    PolicyReport,
+    ScaleVerdict,
     align_to_target,
+    build_features,
     evaluate_baselines,
+    evaluate_stationarity,
+    indicators,
     label_direction,
+    probe_scale,
     temporal_split,
 )
 
@@ -293,6 +302,176 @@ def align_command(
         f"{len(panel.frame.columns)} columns. "
         f"No row exists that {panel.target} did not trade."
     )
+
+
+@app.command("features")
+def features_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol whose bars define the timeline.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    mode: Annotated[
+        str, typer.Option("--mode", "-m", help="focus (target only) or whole (every symbol).")
+    ] = "focus",
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_REFERENCE_DIR,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
+) -> None:
+    """Build the feature matrix and report what each column is made of."""
+    # Two things are being demonstrated, not just computed. That indicators are built on
+    # each symbol's native grid before any reindexing - the other order manufactures zero
+    # returns on stale rows, and staleness tracks the hour of day, so a tree learns a
+    # session clock. And that no column is a price level, checked by rescaling the input
+    # prices and observing which columns move rather than by trusting their names.
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        selected = Mode(mode.lower())
+        catalogue = scan(directory)
+    except ValueError:
+        console.print(f"[red]Unknown mode {mode!r}: expected 'focus' or 'whole'.[/red]")
+        raise typer.Exit(code=2) from None
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    wanted = [s for s in catalogue.series if s.timeframe is interval]
+    if not any(s.symbol == spec for s in wanted):
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    series = {}
+    for item in wanted:
+        frame, _ = read_series(item.path, item.symbol, item.timeframe)
+        series[item.symbol.name] = frame
+
+    try:
+        matrix = build_features(spec.name, series, interval, mode=selected)
+        # The probe rebuilds the target's own indicators on prices multiplied by ten.
+        # Only the target's are probed: the verdict is a property of the indicator, not
+        # of the symbol, and rebuilding the whole panel would cost a second run of the
+        # alignment to learn nothing extra.
+        verdicts = probe_scale(indicators, series[spec.name])
+        policy = evaluate_stationarity(matrix.frame, _prefixed(verdicts, matrix))
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    if as_json:
+        console.print_json(data=_features_payload(matrix, policy))
+        return
+
+    console.print(
+        f"[bold]{matrix.target}[/bold] at {interval.value}, mode {selected.value}: "
+        f"{matrix.rows:,} rows x {matrix.columns} columns "
+        f"from {len(matrix.symbols)} symbol(s)"
+    )
+    console.print(
+        f"[dim]{matrix.warmup_dropped:,} warm-up rows dropped: the longest window is "
+        f"{LONGEST_WINDOW} bars, and a row without a full window behind it would report "
+        "a value computed from less history than it claims.[/dim]"
+    )
+
+    table = Table()
+    table.add_column("Column")
+    table.add_column("Scale")
+    table.add_column("Moved by (p99)", justify="right")
+    table.add_column("Worst row", justify="right")
+    table.add_column("ADF p", justify="right")
+    table.add_column("KPSS p", justify="right")
+    for column in policy.columns:
+        adf = f"{column.adf_pvalue:.3f}" if column.adf_pvalue is not None else "-"
+        kp = f"{column.kpss_pvalue:.3f}" if column.kpss_pvalue is not None else "-"
+        style = "red" if not column.allowed else ""
+        table.add_row(
+            column.name,
+            column.scale.value,
+            f"{column.relative_change:.1e}",
+            f"{column.worst_change:.1e}",
+            adf,
+            kp,
+            style=style,
+        )
+    console.print(table)
+
+    if policy.passes:
+        console.print(
+            "[green]No column is a price level.[/green] Every one was rebuilt on prices "
+            "multiplied by ten and came back unchanged."
+        )
+    else:
+        names = ", ".join(c.name for c in policy.violations)
+        console.print(
+            f"[red]{len(policy.violations)} column(s) scale with the price: {names}.[/red] "
+            "The test block would sit outside the training data's support."
+        )
+        raise typer.Exit(code=1)
+
+    console.print(
+        f"[dim]ADF and KPSS are reported, never decisive. At n={policy.columns[0].n_finite:,} "
+        "the ADF rejects a unit root on almost anything, and both are invalid under the "
+        "heteroskedasticity and regime change that characterise this data. What settles "
+        "the question is distribution shift between blocks, which needs the splits.[/dim]"
+    )
+    if policy.disagreements:
+        console.print(
+            f"[yellow]{len(policy.disagreements)} column(s) where ADF and KPSS point opposite "
+            "ways.[/yellow] That is the honest outcome for a series that is neither clearly "
+            "stationary nor clearly a random walk."
+        )
+
+
+def _prefixed(
+    verdicts: dict[str, ScaleVerdict], matrix: FeatureMatrix
+) -> dict[str, ScaleVerdict]:
+    """Map the probe's bare column names onto the panel's namespaced ones.
+
+    The probe runs on one symbol's indicators, so it yields `rsi_14`; the panel calls the
+    same column `XAUUSD_rsi_14` and repeats it per symbol. The verdict is a property of
+    the indicator, so it applies to every symbol's copy of it.
+    """
+    out: dict[str, ScaleVerdict] = {}
+    for column in matrix.frame.columns:
+        name = str(column)
+        for bare, verdict in verdicts.items():
+            if name.endswith(f"_{bare}"):
+                out[name] = verdict
+                break
+    return out
+
+
+def _features_payload(matrix: FeatureMatrix, policy: PolicyReport) -> dict[str, Any]:
+    """The same result, shaped for a machine (ADR-005)."""
+    return {
+        "target": matrix.target,
+        "timeframe": matrix.timeframe.value,
+        "mode": matrix.mode.value,
+        "symbols": list(matrix.symbols),
+        "rows": matrix.rows,
+        "columns": matrix.columns,
+        "warmup_dropped": matrix.warmup_dropped,
+        "first": matrix.frame.index[0].isoformat() if matrix.rows else None,
+        "last": matrix.frame.index[-1].isoformat() if matrix.rows else None,
+        "policy_passes": policy.passes,
+        "violations": [c.name for c in policy.violations],
+        "features": [
+            {
+                "name": c.name,
+                "scale": c.scale.value,
+                "relative_change": c.relative_change,
+                "worst_change": c.worst_change,
+                "adf_pvalue": c.adf_pvalue,
+                "kpss_pvalue": c.kpss_pvalue,
+                "n_finite": c.n_finite,
+            }
+            for c in policy.columns
+        ],
+    }
 
 
 @app.command("baseline")
