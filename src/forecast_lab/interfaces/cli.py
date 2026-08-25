@@ -42,17 +42,29 @@ from forecast_lab.ingest import (
 from forecast_lab.ingest.importer import ImportReport
 from forecast_lab.research import (
     LONGEST_WINDOW,
+    PCA_VARIANCE,
+    Direction,
     FeatureMatrix,
     Mode,
     PolicyReport,
     ScaleVerdict,
     align_to_target,
+    availability,
     build_features,
+    calibration_chart,
+    confusion,
+    confusion_grid,
+    edge_chart,
     evaluate_baselines,
     evaluate_stationarity,
+    fit_and_predict,
     indicators,
     label_direction,
+    positive_rate,
     probe_scale,
+    roc_chart,
+    roc_points,
+    score_model,
     temporal_split,
 )
 
@@ -67,6 +79,12 @@ DEFAULT_REFERENCE_DIR = DATA_ROOT / "reference"
 #: Committed, unlike the data it describes: it is what ties a published number to the
 #: bytes behind it (ADR-002 sec. 7).
 DEFAULT_MANIFEST = Path("docs/status/data-manifest.json")
+#: Figures are committed - they are derived statistics rather than vendor data, and a
+#: research log whose charts only exist on the author's machine is not a research log.
+DEFAULT_FIGURES = Path("docs/status/figures")
+#: Accuracy at which an hourly strategy pays for its own costs, under the friendliest
+#: assumption. Carried from the planning analysis until `costs.py` computes it.
+BREAK_EVEN = 0.5192
 
 
 @app.callback()
@@ -471,6 +489,348 @@ def _features_payload(matrix: FeatureMatrix, policy: PolicyReport) -> dict[str, 
             }
             for c in policy.columns
         ],
+    }
+
+
+@app.command("train")
+def train_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol whose direction is predicted.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    horizon: Annotated[int, typer.Option("--horizon", help="Bars ahead to predict.")] = 1,
+    mode: Annotated[
+        str, typer.Option("--mode", "-m", help="focus (target only) or whole (every symbol).")
+    ] = "focus",
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_REFERENCE_DIR,
+    pca: Annotated[
+        bool, typer.Option("--pca/--no-pca", help="Also fit on PCA at 95% and 90% variance.")
+    ] = True,
+    figures: Annotated[
+        Path | None,
+        typer.Option("--figures", help="Write charts to this directory as PNG."),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
+) -> None:
+    """Fit every model on train, select on validation, and score once on test."""
+    # Three refusals, one per defect. Transforms are fitted on train alone. Selection
+    # happens on validation, never on test - the original ordered by Test_Accuracy in one
+    # notebook and picked with Test_AUC.idxmax() in the other, which turns the test set
+    # into a hyperparameter. And every score is printed beside the baseline it has to
+    # clear, because 51.53% is not a result until you know that always-UP scores 51.46%.
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        selected = Mode(mode.lower())
+        catalogue = scan(directory)
+    except ValueError:
+        console.print(f"[red]Unknown mode {mode!r}: expected 'focus' or 'whole'.[/red]")
+        raise typer.Exit(code=2) from None
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    wanted = [s for s in catalogue.series if s.timeframe is interval]
+    if not any(s.symbol == spec for s in wanted):
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    series = {}
+    for item in wanted:
+        frame, _ = read_series(item.path, item.symbol, item.timeframe)
+        series[item.symbol.name] = frame
+
+    try:
+        matrix = build_features(spec.name, series, interval, mode=selected)
+        close = series[spec.name]["close"]
+        labels, label_report = label_direction(close, interval, horizon=horizon)
+        # Only UP and DOWN are modelled. A FLAT bar has no direction to be right about,
+        # and a model rewarded for guessing on ties is being scored on coin flips.
+        direction = labels["label"].where(labels["label"] != float(Direction.FLAT.value))
+        direction = direction.reindex(matrix.frame.index)
+
+        split = temporal_split(pd.DatetimeIndex(matrix.frame.index), horizon=horizon)
+        blocks = {b.name: b.index for b in split.blocks}
+        baselines = {
+            name: positive_rate(direction.reindex(blocks["train"]))
+            for name in blocks
+        }
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    # The baseline a constant predictor achieves on each block: it predicts train's
+    # majority, so its accuracy is that class's share OF THAT BLOCK.
+    train_up = baselines["train"]
+    majority = 1.0 if train_up > 0.5 else 0.0
+    block_baseline = {
+        name: _constant_accuracy(direction.reindex(index), majority)
+        for name, index in blocks.items()
+    }
+
+    models = availability()
+    unavailable = [m for m in models if not m.available]
+
+    representations: list[float | None] = [None]
+    if pca:
+        representations.extend(PCA_VARIANCE)
+
+    scores: list[Any] = []
+    fitted_probabilities: dict[str, dict[str, pd.Series]] = {}
+    failures: list[tuple[str, str]] = []
+    for entry in models:
+        if not entry.available:
+            continue
+        for variance in representations:
+            try:
+                fitted = fit_and_predict(
+                    entry.spec, matrix.frame, direction, blocks, variance=variance
+                )
+            except ForecastLabError as exc:
+                failures.append((entry.name, str(exc)))
+                continue
+            fitted_probabilities[fitted.key] = fitted.probabilities
+            for block_name, proba in fitted.probabilities.items():
+                if block_name == "train":
+                    continue  # train accuracy measures memorisation, not skill
+                scores.append(
+                    score_model(
+                        model=fitted.model,
+                        representation=fitted.representation,
+                        block=block_name,
+                        probabilities=proba,
+                        labels=direction,
+                        baseline_accuracy=block_baseline[block_name],
+                        components=fitted.components,
+                    )
+                )
+
+    if not scores:
+        console.print("[red]No model could be fitted.[/red]")
+        raise typer.Exit(code=1)
+
+    # THE selection: the best on validation, chosen before test is looked at.
+    validation = [s for s in scores if s.block == "validation"]
+    chosen = max(validation, key=lambda s: s.auc)
+    on_test = next(
+        (s for s in scores if s.block == "test" and s.key == chosen.key), None
+    )
+
+    if as_json:
+        console.print_json(
+            data=_train_payload(
+                spec.name, interval, horizon, selected, matrix, label_report,
+                split, block_baseline, scores, chosen, on_test, models,
+            )
+        )
+        return
+
+    console.print(
+        f"[bold]{spec.name}[/bold] at {interval.value}, horizon {horizon}, mode "
+        f"{selected.value}: {matrix.rows:,} rows x {matrix.columns} columns"
+    )
+    if unavailable:
+        # Never silent. A comparison that quietly omits a model is a comparison of a
+        # different experiment than the one the table claims to describe.
+        for entry in unavailable:
+            console.print(f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]")
+    for name, why in failures:
+        console.print(f"[yellow]{name} failed to fit:[/yellow] [dim]{why}[/dim]")
+
+    console.print(
+        "\n[bold]Selection on validation[/bold] [dim](test is scored once, afterwards)[/dim]"
+    )
+    console.print(_score_table(validation, block_baseline["validation"]))
+
+    console.print("\n[bold]Test[/bold]")
+    console.print(_score_table([s for s in scores if s.block == "test"], block_baseline["test"]))
+
+    console.print(
+        f"\nSelected on validation AUC: [bold]{chosen.key}[/bold] "
+        f"(AUC {chosen.auc:.4f}, accuracy {chosen.accuracy:.2%})"
+    )
+    if on_test is not None:
+        verdict = "beats" if on_test.beats_baseline else "[red]loses to[/red]"
+        console.print(
+            f"On test it scores [bold]{on_test.accuracy:.2%}[/bold] against a "
+            f"{on_test.baseline_accuracy:.2%} baseline - it {verdict} the constant "
+            f"predictor by [bold]{on_test.edge:+.2%}[/bold]."
+        )
+        if on_test.specificity < 0.05:
+            console.print(
+                f"[yellow]Specificity {on_test.specificity:.2%} with recall "
+                f"{on_test.recall:.2%}.[/yellow] That is a constant, not a model - the "
+                "exact signature the original analysis reported as a result."
+            )
+        console.print(
+            "[dim]A single 70/15/15 split resolves about 0.85 points at 80% power, so a "
+            f"gap of {abs(on_test.edge):.2%} is inside the noise either way. That is a "
+            "fact about the design, not about the model.[/dim]"
+        )
+
+    if figures is not None:
+        try:
+            written = _write_figures(
+                figures, scores, fitted_probabilities, direction, block_baseline, chosen
+            )
+        except (ForecastLabError, OSError) as exc:
+            console.print(f"[red]Could not write figures: {exc}[/red]")
+            raise typer.Exit(code=1) from None
+        console.print(f"\n{len(written)} figure(s) written to [bold]{figures}[/bold]")
+
+
+def _write_figures(
+    destination: Path,
+    scores: list[Any],
+    fitted: dict[str, Any],
+    direction: pd.Series,
+    baselines: dict[str, float],
+    chosen: Any,
+) -> list[Path]:
+    """Build every figure and write it. The only place a figure touches disk.
+
+    `research/plots.py` returns `Figure` objects and never saves one - the layering guard
+    treats `savefig` as I/O for exactly that reason. Deciding where output goes is the
+    composition root's job.
+    """
+    import matplotlib.pyplot as plt
+
+    destination.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    for block in ("validation", "test"):
+        block_scores = [s for s in scores if s.block == block]
+        if not block_scores:
+            continue
+
+        figures = {
+            f"edge-{block}": edge_chart(
+                block_scores, baseline=baselines[block], break_even=BREAK_EVEN,
+                block=block, selected=chosen.key,
+            ),
+            f"roc-{block}": roc_chart(
+                {
+                    key: roc_points(probs[block], direction)
+                    for key, probs in fitted.items()
+                    if block in probs
+                },
+                block=block, selected=chosen.key,
+            ),
+            f"calibration-{block}": calibration_chart(
+                {
+                    key: (probs[block], direction)
+                    for key, probs in fitted.items()
+                    if block in probs
+                },
+                block=block,
+            ),
+            f"confusion-{block}": confusion_grid(
+                {
+                    key: confusion(probs[block], direction)
+                    for key, probs in fitted.items()
+                    if block in probs
+                },
+                block=block,
+            ),
+        }
+        for name, figure in figures.items():
+            path = destination / f"{name}.png"
+            figure.savefig(path, dpi=140, bbox_inches="tight")
+            plt.close(figure)
+            written.append(path)
+
+    return written
+
+
+def _constant_accuracy(labels: pd.Series, majority: float) -> float:
+    """What predicting `majority` every time scores on this block."""
+    decided = labels.dropna()
+    return float((decided == majority).mean()) if len(decided) else 0.0
+
+
+def _score_table(scores: list[Any], baseline: float) -> Table:
+    table = Table()
+    # Truncating a long model name is legible; wrapping it onto a second row turns a
+    # comparison table into a wall and hides which figure belongs to which model.
+    table.add_column("Model", no_wrap=True, max_width=20)
+    table.add_column("Repr.", no_wrap=True)
+    table.add_column("Acc", justify="right")
+    table.add_column("Edge", justify="right")
+    table.add_column("AUC", justify="right")
+    table.add_column("Brier", justify="right")
+    table.add_column("Recall", justify="right")
+    table.add_column("Spec.", justify="right")
+    for s in sorted(scores, key=lambda x: x.auc, reverse=True):
+        table.add_row(
+            s.model,
+            s.representation + (f" ({s.components})" if s.components else ""),
+            f"{s.accuracy:.2%}",
+            f"[{'green' if s.beats_baseline else 'red'}]{s.edge:+.2%}[/]",
+            f"{s.auc:.4f}",
+            f"{s.brier:.4f}",
+            f"{s.recall:.2%}",
+            f"{s.specificity:.2%}",
+        )
+    table.add_row(
+        "[dim]always-UP (from train)[/dim]", "[dim]-[/dim]", f"[dim]{baseline:.2%}[/dim]",
+        "[dim]0.00%[/dim]", "[dim]0.5000[/dim]", "[dim]-[/dim]",
+        "[dim]100.00%[/dim]", "[dim]0.00%[/dim]",
+    )
+    return table
+
+
+def _train_payload(
+    symbol: str, interval: Timeframe, horizon: int, mode: Mode, matrix: Any,
+    label_report: Any, split: Any, baselines: dict[str, float], scores: list[Any],
+    chosen: Any, on_test: Any, models: tuple[Any, ...],
+) -> dict[str, Any]:
+    """The same result, shaped for a machine (ADR-005)."""
+    return {
+        "target": symbol,
+        "timeframe": interval.value,
+        "horizon": horizon,
+        "mode": mode.value,
+        "rows": matrix.rows,
+        "columns": matrix.columns,
+        "labels": {
+            "labelled": label_report.labelled,
+            "gapped": label_report.gapped,
+            "flat": label_report.flat,
+        },
+        "blocks": {
+            b.name: {"rows": b.rows, "baseline_accuracy": baselines[b.name]}
+            for b in split.blocks
+        },
+        "models_unavailable": [
+            {"name": m.name, "reason": m.reason} for m in models if not m.available
+        ],
+        "scores": [
+            {
+                "model": s.model,
+                "representation": s.representation,
+                "components": s.components,
+                "block": s.block,
+                "n": s.n,
+                "accuracy": s.accuracy,
+                "baseline_accuracy": s.baseline_accuracy,
+                "edge": s.edge,
+                "auc": s.auc,
+                "brier": s.brier,
+                "precision": s.precision,
+                "recall": s.recall,
+                "specificity": s.specificity,
+                "predicted_up_rate": s.predicted_up_rate,
+            }
+            for s in scores
+        ],
+        "selected_on_validation": chosen.key,
+        "test_edge": on_test.edge if on_test is not None else None,
     }
 
 

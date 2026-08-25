@@ -21,9 +21,9 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `183 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 6).
+Expect `218 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 6).
 
-**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 7.
+**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 8.
 
 ## 2. Getting data onto disk
 
@@ -92,7 +92,7 @@ Expect **22,982 rows x 17 columns** in focus mode and **x 179** in whole - and, 
 
 **Reading the table:**
 
-- **`Moved by (p99)`** decides. Every column is rebuilt on prices multiplied by ten; a column that moves is a price level. The verdict is the 99th percentile of the per-row deviation, not the maximum - see sec. 7 for why.
+- **`Moved by (p99)`** decides. Every column is rebuilt on prices multiplied by ten; a column that moves is a price level. The verdict is the 99th percentile of the per-row deviation, not the maximum - see the ADR for why.
 - **`Worst row`** is reported and never decides. A large worst beside a tiny p99 means a numerical instability, not a price level.
 - **`ADF p` and `KPSS p` are diagnostics, never gates.** At n = 5,000 the ADF rejects a unit root on almost anything, and both tests are invalid under the heteroskedasticity and regime change that characterise this data. Columns where the two disagree are counted and reported rather than resolved by picking a favourite.
 
@@ -108,7 +108,36 @@ To check the pipeline is genuinely symbol-agnostic, point it somewhere else:
 uv run forecast-lab features --target BTCUSD --timeframe 1H --dir data/reference --mode whole
 ```
 
-## 6. The network tests
+## 6. Fitting the models
+
+```
+uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference
+uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference --no-pca
+```
+
+Six estimators x three representations (raw, PCA at 95% and 90%), about six seconds.
+
+**Reading the output.** Two tables: validation first, then test. Selection happens on the validation table and the test table is scored afterwards - the order on screen is the order of operations, not a layout choice.
+
+- **`Edge`** is the column to read first: accuracy minus what predicting UP every time scores on the same block. Green is positive, red is negative. The literal `always-UP (from train)` row at the bottom is the same comparison, spelled out.
+- **`Spec.`** at 0.00% with high recall means the model is a constant. The command says so explicitly when it happens.
+- **`Repr.`** shows the retained component count in brackets for PCA rows - `pca-90 (6)` means 90% of the training variance needed six components.
+
+Expect the run to select **LightGBM** and report it losing to the baseline by about 0.64 points. That is the project's central finding reproduced from data, and [STATUS 2026-08-24](../status/STATUS-2026-08-models.md) works through what it does and does not establish.
+
+Add `--figures` to write the charts:
+
+```
+uv run forecast-lab train --target XAUUSD --timeframe 1H --figures docs/status/figures
+```
+
+Eight PNGs, four per block. Start with `edge-<block>.png`: every configuration as a bar, with the constant predictor and the break-even accuracy as vertical lines. A bar left of the red line is a model that lost to a rule with no parameters. `confusion-<block>.png` is the other one worth reading closely - if a model's DOWN row and UP row look the same, it is predicting UP at the same rate whether price rose or fell, which is what no signal looks like.
+
+**The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate and it cost eight seconds: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
+
+If a model cannot be loaded, the command prints it and continues - see sec. 8 for the reason that happens on Windows.
+
+## 7. The network tests
 
 Excluded from the gates so the default run is hermetic - no network, any OS, fast. They hold the venue to its side of the contract: that hourly bars still open exactly on the hour (the invariant the whole alignment design rests on), that both sides combine into a positive spread, and that every mapped instrument still exists.
 
@@ -118,12 +147,12 @@ uv run python -m pytest -m network
 
 Run them when the data source misbehaves or before trusting a fresh `fetch`.
 
-## 7. When something fails
+## 8. When something fails
 
 **`DLL load failed ... an application control policy blocked this file`** - Windows Smart App Control blocking an unsigned binary extension. Two forms:
 
 - *On mypy*, permanently. Its published wheel ships mypyc-compiled `.pyd` extensions that SAC refuses outright, which silently removes one of the three gates. `pyproject.toml` pins a source build (`no-binary-package = ["mypy"]`), and mypy and pytest are invoked as `python -m` so the module is resolved from the environment rather than through a launcher shim.
-- *On scipy, for the first few runs after a fresh `uv sync`*, then never again. SAC evaluates each unknown binary's reputation asynchronously and blocks it while it asks - **and it does so one file at a time**. Observed on a fresh clone: the first run failed on `_sparsetools`, `_moduleTNC`, `_zeros` and `pyduccfft` with 8 collection errors; the second failed on `rcont` alone with 2; the third passed all 183 with nothing reinstalled between them. **Re-run before diagnosing anything.**
+- *On scipy, for the first few runs after a fresh `uv sync`*, then never again. SAC evaluates each unknown binary's reputation asynchronously and blocks it while it asks - **and it does so one file at a time**. Observed on a fresh clone: the first run failed on `_sparsetools`, `_moduleTNC`, `_zeros` and `pyduccfft` with 8 collection errors; the second failed on `rcont` alone with 2; the third passed all 218 with nothing reinstalled between them. **Re-run before diagnosing anything.**
 
 **`error: Failed to spawn: forecast-lab ... (os error 4551)`** - the same policy, refusing the launcher itself. The `forecast-lab` console script is a generated `.exe` shim, and a freshly built binary has no reputation. Measured here: a shim installed days ago runs fine while one regenerated by `uv sync` minutes earlier stays blocked across repeated attempts - so unlike the extensions above, waiting is not a reliable fix.
 
@@ -143,8 +172,10 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **Feature counts changed and you did not change the code** - check the `ta` version. It is the only dependency pinned exactly (`ta==0.11.0`) because it changes indicator values between releases; `uv lock --upgrade` would walk past a range pin and move every published number without touching a line of ours.
 
+**`LightGBM not run: blocked by an application control policy`** - the same policy again, and here it is *not* transient. LightGBM and XGBoost load a native DLL through `ctypes`, which the policy refuses outright for a binary with no established reputation. Measured: **4.7.0 and 3.4.1 are blocked; 4.6.0 and 3.0.5 load first try**. Those two versions are pinned exactly in `pyproject.toml` for that reason, so the failure mode to watch for is a well-meaning `uv lock --upgrade` silently removing the two most interesting models from the comparison. The command never hides it - it names every model it could not run.
+
 **The OneDrive exports fail to read** - Files On-Demand leaves placeholder stubs on disk. Open the folder in Explorer and let it hydrate before pointing `ingest --from` at it.
 
-## 8. What is not built yet
+## 9. What is not built yet
 
-`features` is where the pipeline currently stops. Scaling, PCA, the models and their confusion matrices are the next slice; walk-forward validation, the cost model and the power analysis follow. The order is deliberate: the original analysis went wrong before any model was fitted, so the corrections come first and the models second.
+`train` is where the pipeline currently stops. What is missing is the evaluation rather than the modelling: transaction costs and the break-even threshold, walk-forward validation to replace a single split that resolves only 0.85 points, and the significance battery that accounts for having scored eighteen configurations. Those turn "-0.64%" into a verdict instead of a number.

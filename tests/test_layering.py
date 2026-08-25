@@ -47,7 +47,20 @@ ALLOWED: dict[str, frozenset[str]] = {
 IO_CALLS = frozenset({"open", "urlopen"})
 # `.get` is deliberately absent: `dict.get` is everywhere, and flagging it would train
 # everyone to ignore this guard. HTTP clients are caught by their import instead.
-IO_ATTRS = frozenset({"read_csv", "read_parquet", "read_json", "glob", "rglob", "iterdir"})
+IO_ATTRS = frozenset(
+    {
+        "read_csv",
+        "read_parquet",
+        "read_json",
+        "glob",
+        "rglob",
+        "iterdir",
+        # `research/plots.py` builds figures and hands them back; writing one is the
+        # CLI's job, so a stray savefig here would be the layer reaching for disk
+        # under a name the original list did not anticipate.
+        "savefig",
+    }
+)
 IO_MODULES = frozenset({"requests", "httpx", "urllib", "pathlib", "csv", "sqlite3"})
 
 
@@ -200,6 +213,13 @@ def test_research_never_reaches_for_data() -> None:
 #: the type checker's guarantees with it wherever it goes.
 TA_QUARANTINE = "research/features/technical.py"
 
+#: The untyped modelling stack, confined to one package for the same reason.
+ESTIMATOR_PACKAGES = frozenset({"sklearn", "lightgbm", "xgboost"})
+
+#: matplotlib is untyped too, and is confined to the module that builds figures.
+PLOT_QUARANTINE = "research/plots.py"
+ESTIMATOR_QUARANTINE = "research/models/"
+
 
 @pytest.mark.unit
 def test_the_untyped_indicator_library_stays_in_one_module() -> None:
@@ -227,3 +247,64 @@ def test_the_untyped_indicator_library_stays_in_one_module() -> None:
         f"`ta` may only be imported by {TA_QUARANTINE} (ADR-006, Consequences). "
         f"Found: {offenders}"
     )
+
+
+@pytest.mark.unit
+def test_the_untyped_estimator_stack_stays_in_one_package() -> None:
+    """sklearn, lightgbm and xgboost are confined to `research/models/`.
+
+    Same argument as `ta`: none ships type information, so every symbol crossing that
+    boundary arrives as `Any`. Confining them keeps the rest of the codebase genuinely
+    checked rather than nominally so.
+
+    `metrics.py` imports `roc_auc_score` and `training.py` imports the Pipeline, so the
+    quarantine is a package rather than a single module - but it is still one place.
+    """
+    offenders: list[str] = []
+    for module in sorted(SRC.rglob("*.py")):
+        where = module.relative_to(SRC).as_posix()
+        if ESTIMATOR_QUARANTINE in where:
+            continue
+        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            else:
+                continue
+            for name in names:
+                if name.split(".")[0] in ESTIMATOR_PACKAGES:
+                    offenders.append(f"{where}:{node.lineno} imports {name}")
+
+    assert not offenders, (
+        f"the estimator stack may only be imported under {ESTIMATOR_QUARANTINE} "
+        f"(ADR-007). Found: {offenders}"
+    )
+
+
+@pytest.mark.unit
+def test_matplotlib_stays_in_the_plotting_module() -> None:
+    """Figures are built in one place (ADR-008).
+
+    Same argument as `ta` and the estimator stack: matplotlib ships no type information.
+    Confining it also keeps a second, quieter property true - only one module needs the
+    `Agg` backend dance, so no other import can accidentally probe for a display.
+    """
+    offenders: list[str] = []
+    for module in sorted(SRC.rglob("*.py")):
+        where = module.relative_to(SRC).as_posix()
+        if where.endswith(PLOT_QUARANTINE) or where.endswith("interfaces/cli.py"):
+            continue
+        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                names = [node.module or ""]
+            else:
+                continue
+            if any(n.split(".")[0] == "matplotlib" for n in names):
+                offenders.append(f"{where}:{node.lineno}")
+
+    assert not offenders, f"matplotlib belongs in {PLOT_QUARANTINE}. Found: {offenders}"

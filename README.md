@@ -24,6 +24,12 @@ With 1,547 of 2,983 test bars going up, **always predicting UP scores 51.86%**. 
 
 That is not a story about one careless project. It is what happens when a pipeline has no baseline, no power analysis, and no separation between choosing a model and testing it. This repository rebuilds the experiment so those three things are impossible to skip.
 
+**And the corrected pipeline now reaches the same verdict independently.** Rebuilt end to end - labels on an explicit horizon, a purged split, features that carry no price level, every transform fitted on train alone, selection on validation - it selects **LightGBM**, the same model the original selected, and on test it scores 50.67% against a 51.31% baseline: **-0.64%**. The original reported -0.33%. Two pipelines, different data handling, the same choice and the same sign ([STATUS 2026-08-24](docs/status/STATUS-2026-08-models.md)).
+
+![Every model against the rules it has to beat](docs/status/figures/edge-test.png)
+
+Thirteen of eighteen configurations fall below the constant predictor; exactly one clears break-even, and it is the best of eighteen coin flips. The measured cost of the shortcut is the sharpest number this project has produced. Selecting on validation gives -0.64% on test; selecting by *looking at* test - which is what `results_df['Test_AUC'].idxmax()` does - gives **+2.00%**. Same data, same eighteen configurations, **2.64 points that hang entirely on when the test set is consulted**.
+
 **And it computes its own version of the number rather than only quoting that one.** `forecast-lab baseline` runs the corrected pipeline end to end and reports what a model would have to beat: on the test block, always-UP scores **51.46%** with 100% recall and **0.00% specificity** - the signature of a constant wearing a model's clothes - while a seeded coin flip scores **51.70%**, above it. Break-even against the friendliest cost assumption is 51.92%; nothing available without a model reaches it. The full run is in [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md), which also says which figures this repository computes and which it merely quotes.
 
 ## What this is, and is not
@@ -89,6 +95,7 @@ Then label the target, cut the timeline, and score the rules a model has to beat
 ```bash
 uv run forecast-lab baseline --target XAUUSD --timeframe 1H
 uv run forecast-lab features --target XAUUSD --timeframe 1H --mode whole
+uv run forecast-lab train    --target XAUUSD --timeframe 1H --figures docs/status/figures
 ```
 
 Every command that produces a result offers `--json`, because the dashboard is going to
@@ -123,14 +130,17 @@ Written as a research book: each document exists because a decision was made, an
 | [ADR-004](docs/adr/ADR-004-labels-splits-and-baselines.md) | What a bar's answer is, where the boundaries fall, and what a model must beat |
 | [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) | The dashboard runs the CLI rather than reimplementing it (**Plan**) |
 | [ADR-006](docs/adr/ADR-006-features-and-stationarity.md) | Indicators before alignment, and no column that carries a price |
+| [ADR-007](docs/adr/ADR-007-fitting-models-without-leaking.md) | Fitting on train, selecting on validation, scoring test once |
+| [ADR-008](docs/adr/ADR-008-figures-are-built-in-memory.md) | Figures are built in memory and committed as PNG |
 | [STATUS 2026-08-18](docs/status/STATUS-2026-08-dukascopy-probe.md) | The data probe: instrument identity confirmed, and why VIX was dropped |
 | [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md) | The baseline recomputed from data, and the 59% of gaps nobody had measured |
 | [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) | The feature matrix, and a guard that real data corrected twice |
+| [STATUS 2026-08-24](docs/status/STATUS-2026-08-models.md) | **The result**: the same model the original chose, losing to a constant |
 | [CHANGELOG](CHANGELOG.md) | Notable changes, newest first |
 
 ## Status
 
-Early, and honest about it. Data gets in, gets verified, gets onto one timeline without a fabricated row, and gets labelled and scored against the rules a model has to beat; nothing is modelled yet. The order is deliberate - the original analysis went wrong before any model was fitted.
+The pipeline runs end to end: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, and fitted. What is missing is not the modelling but the **evaluation**: transaction costs, walk-forward validation, and the significance battery that turns "-0.64%" into a verdict rather than a number. The order was deliberate - the original went wrong before any model was fitted, so the corrections came first.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
@@ -140,7 +150,8 @@ Early, and honest about it. Data gets in, gets verified, gets onto one timeline 
 - [x] Labels on an explicit horizon, a purged chronological split, and the three baselines
 - [x] Features with an enforced stationarity policy, checked by rescaling rather than by name
 - [ ] Walk-forward validation, the cost model, and the power analysis
-- [ ] Models, the evaluation battery, and the verdict
+- [x] Models: six estimators, PCA, selection on validation, scored against the baselines
+- [ ] The evaluation battery, the cost model, and the verdict
 - [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 
 ## Origin and scope of the re-analysis

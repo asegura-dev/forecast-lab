@@ -19,6 +19,18 @@ dependencies = [
     # exact pin makes that a decision someone has to take on purpose.
     "ta==0.11.0",
     "statsmodels>=0.14",  # ADF and KPSS, reported as diagnostics (ADR-006 sec. 3)
+    "scikit-learn>=1.5",  # the pipeline, the scaler, PCA, and three of the estimators
+    # Pinned to versions that predate this machine's toolchain, for a reason that is not
+    # about the libraries at all. Both load a native DLL through `ctypes`, and Windows
+    # Smart App Control refuses any binary lacking a known publisher's signature or an
+    # established reputation - which a freshly published wheel does not have. Measured
+    # here: 4.7.0 and 3.4.1 are refused outright across repeated attempts, while 4.6.0
+    # and 3.0.5 load first try. Upgrading is safe once a release has been in circulation
+    # a while; upgrading blindly can make the two most interesting models vanish from
+    # the comparison on any clean Windows 11 install (RUNBOOK sec. 7).
+    "lightgbm==4.6.0",
+    "xgboost==3.0.5",
+    "matplotlib>=3.8",
 ]
 
 # The composition root: the only place allowed to import concrete adapters and to
@@ -71,7 +83,15 @@ files = ["src", "tests"]
 # Third-party packages shipping no type information. Kept to the ones actually
 # imported: an override for a package we do not depend on is dead configuration.
 [[tool.mypy.overrides]]
-module = ["dukascopy_python.*", "ta.*", "statsmodels.*"]
+module = [
+    "dukascopy_python.*",
+    "ta.*",
+    "statsmodels.*",
+    "sklearn.*",
+    "lightgbm.*",
+    "xgboost.*",
+    "matplotlib.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
