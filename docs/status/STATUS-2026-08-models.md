@@ -132,7 +132,7 @@ Quantified across all eighteen: the median gap between recall and (1 - specifici
 
 [ADR-006](../adr/ADR-006-features-and-stationarity.md) sec. 2 called price levels "the plainest explanation" for the original's PCA collapsing 63 features into 6 components. That was too quick.
 
-Measured here, with every price level already removed: **PCA at 90% variance retains 6 components from 17 features; at 95% it retains 7.** The same absolute number, from a quarter of the columns. Technical indicators computed from a single price series are intrinsically redundant - they are transformations of the same closes - and the levels made that worse rather than causing it. The ADR is corrected rather than left standing.
+Measured here, with every price level already removed: **PCA at 90% variance retains 6 components from 19 features; at 95% it retains 8.** The same absolute number at 90%, from a quarter of the columns - and the reason is now measured rather than inferred: ten of 171 feature pairs correlate above 0.9, and the first component alone carries 44.3% of the variance ([ADR-009](../adr/ADR-009-exploratory-analysis.md) sec. 5). Technical indicators computed from a single price series are intrinsically redundant - they are transformations of the same closes - and the levels made that worse rather than causing it. The ADR is corrected rather than left standing.
 
 ## 9. What this run says about the project's thesis
 

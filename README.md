@@ -47,6 +47,7 @@ What is established firmly: **nothing tested reaches the accuracy at which tradi
 Two more things fell out of building it:
 
 - **Adding two feature columns changed which model wins**, from LightGBM to XGBoost, without changing any conclusion. If that is enough to move the winner among six models, then "LightGBM won" was never a fact about LightGBM ([STATUS](docs/status/STATUS-2026-08-models.md) sec. 5).
+- **The original's headline correlation was mostly trend.** Gold against the S&P is +0.919 on price levels and **+0.139 on returns** - and two other pairs change sign between the two bases. Replicated on both datasets ([STATUS](docs/status/STATUS-2026-08-exploratory.md)).
 - **Gold rises through the venue's pauses far more often than through an ordinary hour** - 59.35% against 50.87% on one dataset, 56.40% against 50.76% on the other. Replicated across two providers. It is not a strategy yet: those are precisely the hours that pay overnight financing.
 
 ## What this is, and is not
@@ -111,6 +112,7 @@ difference between "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hour
 Then label the target, cut the timeline, and score the rules a model has to beat:
 
 ```bash
+uv run forecast-lab explore  --target XAUUSD --timeframe 1H --dir data/raw
 uv run forecast-lab baseline --target XAUUSD --timeframe 1H --dir data/raw
 uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/raw --mode whole
 uv run forecast-lab train    --target XAUUSD --timeframe 1H --dir data/raw --figures docs/status/figures
@@ -156,10 +158,12 @@ Written as a research book: each document exists because a decision was made, an
 | [ADR-006](docs/adr/ADR-006-features-and-stationarity.md) | Indicators before alignment, and no column that carries a price |
 | [ADR-007](docs/adr/ADR-007-fitting-models-without-leaking.md) | Fitting on train, selecting on validation, scoring test once |
 | [ADR-008](docs/adr/ADR-008-figures-are-built-in-memory.md) | Figures are built in memory and committed as PNG |
+| [ADR-009](docs/adr/ADR-009-exploratory-analysis.md) | What exploratory analysis is for, and how it goes wrong quietly |
 | [STATUS 2026-08-18](docs/status/STATUS-2026-08-dukascopy-probe.md) | The data probe: instrument identity confirmed, and why VIX was dropped |
 | [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md) | The baseline recomputed from data, and the 59% of gaps nobody had measured |
 | [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) | The feature matrix, and a guard that real data corrected twice |
-| [STATUS 2026-08-24](docs/status/STATUS-2026-08-models.md) | **The result**: the same model the original chose, losing to a constant |
+| [STATUS 2026-08-24](docs/status/STATUS-2026-08-models.md) | **The result**: nothing beats a constant by a detectable margin, on either dataset |
+| [STATUS 2026-08-27](docs/status/STATUS-2026-08-exploratory.md) | The EDA: three findings that dissolve, and a +0.923 correlation that is +0.13 |
 | [CHANGELOG](CHANGELOG.md) | Notable changes, newest first |
 
 ## Status

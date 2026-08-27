@@ -53,22 +53,38 @@ from forecast_lab.research import (
     ScaleVerdict,
     align_to_target,
     availability,
+    block_chart,
     build_features,
+    by_year,
     calibration_chart,
     confusion,
     confusion_grid,
+    correlation_comparison,
+    correlation_pairs,
+    count_moves,
+    describe,
     edge_chart,
     evaluate_baselines,
     evaluate_stationarity,
+    feature_correlation_chart,
+    feature_correlations,
     fit_and_predict,
     indicators,
     label_direction,
+    multicollinear_pairs,
+    normality,
     positive_rate,
+    price_overview,
     probe_scale,
+    qq_points,
+    redundancy_chart,
+    returns_overview,
     roc_chart,
     roc_points,
     score_model,
     temporal_split,
+    variance_chart,
+    yearly_overview,
 )
 
 app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -495,6 +511,242 @@ def _features_payload(matrix: FeatureMatrix, policy: PolicyReport) -> dict[str, 
     }
 
 
+@app.command("explore")
+def explore_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol to describe.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_REFERENCE_DIR,
+    figures: Annotated[
+        Path | None, typer.Option("--figures", help="Write charts to this directory as PNG.")
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
+) -> None:
+    """Describe the data before modelling it, and test what is worth testing."""
+    # The original project's EDA ran three correct procedures on questions that did not
+    # need asking: a normality test on the price rather than on returns, a t-test between
+    # groups defined by the very variable being compared, and correlations on price
+    # levels. Each produced a confident number that licensed nothing (ADR-009).
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        catalogue = scan(directory)
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    wanted = [s for s in catalogue.series if s.timeframe is interval]
+    if not any(s.symbol == spec for s in wanted):
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    series = {}
+    for item in wanted:
+        frame, _ = read_series(item.path, item.symbol, item.timeframe)
+        series[item.symbol.name] = frame
+
+    close = series[spec.name]["close"]
+    returns = close.pct_change()
+
+    try:
+        price = describe(close, name=f"{spec.name} close")
+        moves = count_moves(returns)
+        price_normality = normality(close, name="price")
+        return_normality = normality(returns, name="returns")
+        yearly = by_year(close)
+        closes = pd.DataFrame({name: frame["close"] for name, frame in series.items()})
+        correlations = correlation_pairs(closes, target=spec.name)
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    if as_json:
+        console.print_json(
+            data=_explore_payload(
+                spec.name, interval, price, moves, price_normality,
+                return_normality, yearly, correlations,
+            )
+        )
+        return
+
+    console.print(
+        f"[bold]{spec.name}[/bold] at {interval.value}: {price.count:,} bars, "
+        f"{close.index[0]:%Y-%m-%d} to {close.index[-1]:%Y-%m-%d}"
+    )
+
+    summary = Table(title="Price", title_justify="left")
+    summary.add_column("Statistic")
+    summary.add_column("Value", justify="right")
+    for label, value in (
+        ("mean", f"{price.mean:,.2f}"),
+        ("median", f"{price.median:,.2f}"),
+        ("std", f"{price.std:,.2f}"),
+        ("range", f"{price.range:,.2f}"),
+        ("IQR", f"{price.iqr:,.2f}"),
+        ("skewness", f"{price.skewness:.4f}"),
+        ("kurtosis", f"{price.kurtosis:.4f}"),
+        ("minimum", f"{price.minimum:,.2f}"),
+        ("maximum", f"{price.maximum:,.2f}"),
+        ("total change", f"{price.total_change:+,.2f} ({price.total_change_pct:+.2f}%)"),
+    ):
+        summary.add_row(label, value)
+    console.print(summary)
+    if price.minimum_at is not None and price.maximum_at is not None:
+        console.print(
+            f"[dim]Low {price.minimum:,.2f} on {price.minimum_at:%Y-%m-%d}, "
+            f"high {price.maximum:,.2f} on {price.maximum_at:%Y-%m-%d}.[/dim]"
+        )
+
+    console.print(
+        f"\nHourly moves: [bold]{moves.up:,}[/bold] up, [bold]{moves.down:,}[/bold] down, "
+        f"{moves.flat:,} flat - [bold]{moves.up_share:.2%}[/bold] of decided bars rose."
+    )
+
+    # The whole point of running the test twice.
+    console.print("\n[bold]Normality (D'Agostino-Pearson)[/bold]")
+    for test in (price_normality, return_normality):
+        verdict = "rejects" if test.rejects_normality else "does not reject"
+        console.print(
+            f"  {test.name:9s} statistic {test.statistic:>10,.1f}  p = {test.p_value:.3e}  "
+            f"-> {verdict} normality"
+        )
+    console.print(
+        "[dim]The original ran this on the price alone and reported \"not normal\". Any "
+        "trending series fails it, and nothing follows: a price is not what a model here "
+        "consumes. On returns the rejection has a consequence - fat tails are why a "
+        "Sharpe ratio's textbook confidence interval is wrong on this data.[/dim]"
+    )
+
+    years = Table(title="By year", title_justify="left")
+    years.add_column("Year")
+    years.add_column("Bars", justify="right")
+    years.add_column("Mean price", justify="right")
+    years.add_column("Volatility", justify="right")
+    years.add_column("Range", justify="right")
+    years.add_column("Rose", justify="right")
+    for year, row in yearly.iterrows():
+        years.add_row(
+            str(year), f"{int(row['bars']):,}", f"{row['mean_price']:,.0f}",
+            f"{row['volatility']:.1%}", f"{row['range']:,.0f}", f"{row['up_share']:.1%}",
+        )
+    console.print(years)
+    spread = float(yearly["up_share"].max() - yearly["up_share"].min())
+    console.print(
+        f"[yellow]The share of rising bars moves {spread:.2%} across years.[/yellow] "
+        "Which years land in the test block therefore decides part of any accuracy "
+        "measured on it - the oracle gap of ADR-004 sec. 5, seen from the data's side."
+    )
+
+    if len(correlations):
+        table = Table(title=f"Correlation with {spec.name}", title_justify="left")
+        table.add_column("Symbol")
+        table.add_column("On levels", justify="right")
+        table.add_column("On returns", justify="right")
+        table.add_column("Inflated by", justify="right")
+        for symbol, row in correlations.iterrows():
+            table.add_row(
+                str(symbol), f"{row['on_levels']:+.3f}", f"{row['on_returns']:+.3f}",
+                f"{row['inflation']:+.3f}",
+            )
+        console.print(table)
+        console.print(
+            "[dim]Two series that both trend upward correlate on levels whatever their "
+            "relationship. The returns column is what a model at this horizon sees, and "
+            "the gap between the two is how much of the original's EDA was trend.[/dim]"
+        )
+
+    if figures is not None:
+        try:
+            written = _write_eda_figures(figures, spec.name, close, returns, yearly, closes)
+        except (ForecastLabError, OSError) as exc:
+            console.print(f"[red]Could not write figures: {exc}[/red]")
+            raise typer.Exit(code=1) from None
+        console.print(f"\n{len(written)} figure(s) written to [bold]{figures}[/bold]")
+
+
+def _write_eda_figures(
+    destination: Path, symbol: str, close: pd.Series, returns: pd.Series,
+    yearly: pd.DataFrame, closes: pd.DataFrame,
+) -> list[Path]:
+    """Build and write the exploratory figures. The only place they touch disk."""
+    import matplotlib.pyplot as plt
+
+    destination.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+
+    figures = {
+        "eda-price": price_overview(close, qq_points(close), symbol=symbol),
+        "eda-returns": returns_overview(returns, qq_points(returns), symbol=symbol),
+        "eda-yearly": yearly_overview(yearly, symbol=symbol),
+    }
+    if len(closes.columns) > 1:
+        figures["eda-correlations"] = correlation_comparison(closes, target=symbol)
+
+    for name, figure in figures.items():
+        path = destination / f"{name}.png"
+        figure.savefig(path, dpi=140, bbox_inches="tight")
+        plt.close(figure)
+        written.append(path)
+    return written
+
+
+def _explore_payload(
+    symbol: str, interval: Timeframe, price: Any, moves: Any, price_normality: Any,
+    return_normality: Any, yearly: pd.DataFrame, correlations: pd.DataFrame,
+) -> dict[str, Any]:
+    """The same result, shaped for a machine (ADR-005)."""
+    return {
+        "symbol": symbol,
+        "timeframe": interval.value,
+        "price": {
+            "count": price.count,
+            "mean": price.mean,
+            "median": price.median,
+            "mode": price.mode,
+            "std": price.std,
+            "variance": price.variance,
+            "minimum": price.minimum,
+            "maximum": price.maximum,
+            "range": price.range,
+            "iqr": price.iqr,
+            "skewness": price.skewness,
+            "kurtosis": price.kurtosis,
+            "total_change": price.total_change,
+            "total_change_pct": price.total_change_pct,
+            "minimum_at": price.minimum_at.isoformat() if price.minimum_at else None,
+            "maximum_at": price.maximum_at.isoformat() if price.maximum_at else None,
+        },
+        "moves": {
+            "up": moves.up, "down": moves.down, "flat": moves.flat,
+            "up_share": moves.up_share,
+        },
+        "normality": {
+            test.name: {
+                "statistic": test.statistic,
+                "p_value": test.p_value,
+                "rejects": test.rejects_normality,
+                "n": test.n,
+            }
+            for test in (price_normality, return_normality)
+        },
+        "by_year": {
+            str(year): {k: float(v) for k, v in row.items()}
+            for year, row in yearly.iterrows()
+        },
+        "correlations": {
+            str(symbol_name): {k: float(v) for k, v in row.items()}
+            for symbol_name, row in correlations.iterrows()
+        },
+    }
+
+
 @app.command("train")
 def train_command(
     target: Annotated[
@@ -586,6 +838,7 @@ def train_command(
 
     scores: list[Any] = []
     fitted_probabilities: dict[str, dict[str, pd.Series]] = {}
+    variances: dict[str, tuple[float, ...]] = {}
     failures: list[tuple[str, str]] = []
     for entry in models:
         if not entry.available:
@@ -599,6 +852,8 @@ def train_command(
                 failures.append((entry.name, str(exc)))
                 continue
             fitted_probabilities[fitted.key] = fitted.probabilities
+            if fitted.explained_variance and fitted.representation not in variances:
+                variances[fitted.representation] = fitted.explained_variance
             for block_name, proba in fitted.probabilities.items():
                 if block_name == "train":
                     continue  # train accuracy measures memorisation, not skill
@@ -685,10 +940,23 @@ def train_command(
             "the design, not about the model.[/dim]"
         )
 
+    # Two facts about the matrix that explain the results, measured rather than asserted.
+    correlations = feature_correlations(matrix.frame, direction)
+    redundant = multicollinear_pairs(matrix.frame)
+    possible = matrix.columns * (matrix.columns - 1) // 2
+    console.print(
+        f"\n[dim]Strongest single feature correlates with the direction at "
+        f"{correlations.abs().max():.4f}, and {len(redundant)} of {possible:,} feature "
+        f"pairs exceed |0.9| - which is why PCA collapses {matrix.columns} columns into "
+        "a handful.[/dim]"
+    )
+
     if figures is not None:
         try:
             written = _write_figures(
-                figures, scores, fitted_probabilities, direction, block_baseline, chosen
+                figures, scores, fitted_probabilities, direction, block_baseline, chosen,
+                matrix=matrix, correlations=correlations, redundant=redundant,
+                variances=variances, blocks=blocks,
             )
         except (ForecastLabError, OSError) as exc:
             console.print(f"[red]Could not write figures: {exc}[/red]")
@@ -703,6 +971,12 @@ def _write_figures(
     direction: pd.Series,
     baselines: dict[str, float],
     chosen: Any,
+    *,
+    matrix: Any,
+    correlations: pd.Series,
+    redundant: pd.DataFrame,
+    variances: dict[str, tuple[float, ...]],
+    blocks: dict[str, pd.DatetimeIndex],
 ) -> list[Path]:
     """Build every figure and write it. The only place a figure touches disk.
 
@@ -755,6 +1029,27 @@ def _write_figures(
             figure.savefig(path, dpi=140, bbox_inches="tight")
             plt.close(figure)
             written.append(path)
+
+    # Panels about the matrix rather than about a block, so they are drawn once.
+    counts = {name: len(direction.reindex(index).dropna()) for name, index in blocks.items()}
+    balance = {
+        name: float((direction.reindex(index).dropna() == 1.0).mean())
+        for name, index in blocks.items()
+    }
+    possible = matrix.columns * (matrix.columns - 1) // 2
+    once = {
+        "feature-correlations": feature_correlation_chart(correlations),
+        "feature-redundancy": redundancy_chart(redundant, total=possible),
+        "blocks": block_chart(counts, balance),
+    }
+    if variances:
+        once["pca-variance"] = variance_chart(variances, columns=matrix.columns)
+
+    for name, figure in once.items():
+        path = destination / f"{name}.png"
+        figure.savefig(path, dpi=140, bbox_inches="tight")
+        plt.close(figure)
+        written.append(path)
 
     return written
 

@@ -2,6 +2,27 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-27 - The exploratory analysis, and three tests that answered nothing
+
+The half of the original project named in its own course title - *Data Analysis and Exploration* - had no counterpart here until now. Rebuilding it found that its EDA is not careless: it runs standard procedures, correctly implemented, and reports them clearly. Each one is simply pointed at a question that already had its answer.
+
+### Added
+
+- **[ADR-009](docs/adr/ADR-009-exploratory-analysis.md), `research/eda.py` and `forecast-lab explore`** - the descriptive statistics the original printed (mean, median, mode, dispersion, IQR, skewness, kurtosis, extremes with their dates, total change, and the count of rising, falling and flat bars), plus the three tests, with `--json` and `--figures` like the other analysis commands.
+- **Four exploratory figures**: price with its distribution, spread and a Q-Q panel; returns with their distribution, compounding and rolling volatility; the yearly breakdown; and the correlation comparison. **`correlation_comparison` finally has a caller** - it had been written, tested and dead for several days, which [ADR-008](docs/adr/ADR-008-figures-are-built-in-memory.md) recorded honestly at the time.
+- **[STATUS 2026-08-27](docs/status/STATUS-2026-08-exploratory.md)**, with both datasets.
+
+### Fixed - in the analysis this project re-analyses
+
+- **The normality test was aimed at the price rather than at returns.** Both reject, so the p-values say the same thing; the Q-Q panel says what they cannot. The price fails for having tails **shorter** than a normal (-1.14 observed against -3.66 theoretical) because it is bounded below and was trending - a rejection with no consequence. Returns fail for reaching roughly **ten** standard deviations, which is exactly why a Sharpe ratio's textbook confidence interval will be wrong on this data and why the evaluation layer needs a bootstrap.
+- **A t-test that could not fail.** The original defines `Direction = (Price_Change > 0)` and then compares `Price_Change` between the two groups that definition created, reporting p < 0.001 and "significant" into its interpretation section. The UP group cannot contain a negative value. A test in this repository reproduces the tautology - p < 1e-100 on the leaking column, p > 0.01 on an honest one beside it - so `compare_by_direction`'s warning carries evidence, and its API makes the caller name the columns rather than defaulting to all of them.
+- **The +0.923 gold-S&P correlation is +0.139 on returns.** Eight tenths of it was shared trend: both series went up over the same four years. **Two pairs change sign** between the two bases - on levels WTIUSD appears to move against gold and USDJPY with it, and on returns each is the reverse - so a reading based on the level would have been backwards. And **DXY is inflated by 0.005**: the dollar is the one genuine relationship in the table, and it is the one the original did not highlight, because on levels it looked weaker than the S&P.
+
+### Measured
+
+- **The replication across two venues is the strongest result.** Every returns correlation holds between the reference data (4 years, one venue) and the canonical data (9 years, another): silver 0.75 to 0.77, the S&P 0.13, the dollar -0.41 to -0.44. **Two level correlations change sign** - DXY from -0.444 to +0.195, WTIUSD from -0.688 to +0.195 - purely from extending the window back to 2018. A level correlation is a fact about the stretch of history you looked at; a returns correlation is a fact about the assets.
+- **The class balance drifts three points across nine years**, from 49.6% to 52.6% rising. The effect this project is trying to detect is under two, so which years land in the test block decides part of any accuracy measured on it. That is the oracle gap of [ADR-004](docs/adr/ADR-004-labels-splits-and-baselines.md) sec. 5 stated without reference to any model.
+
 ## 2026-08-27 - An audit of the repository against itself
 
 A three-way audit compared every markdown file against the code, the JSON sidecars and the git tree. It found things a passing test suite cannot: claims about the repository's own behaviour that were false, figures that had drifted, and two decisions documented as done that had never been executed. What follows is what the audit found and what closing it changed.

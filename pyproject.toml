@@ -91,6 +91,7 @@ module = [
     "lightgbm.*",
     "xgboost.*",
     "matplotlib.*",
+    "scipy.*",
 ]
 ignore_missing_imports = true
 

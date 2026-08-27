@@ -21,9 +21,9 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `218 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 7).
+Expect `218 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 8).
 
-**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 8.
+**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 9.
 
 ## 2. Getting data onto disk
 
@@ -65,7 +65,20 @@ uv run forecast-lab align --target XAUUSD --timeframe 1H
 
 Expect roughly: VIX carried on 8.0% of rows, DXY on 7.1%, the currencies under 0.2%, and crypto absent from 25.5% because it starts a year late. Those are facts about trading calendars, not defects. What would be a defect is losing track of them, because "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hours ago" are different statements and only one is true.
 
-## 4. Labels, splits, and the numbers a model must beat
+## 4. Describing the data before modelling it
+
+```
+uv run forecast-lab explore --target XAUUSD --timeframe 1H --dir data/reference
+uv run forecast-lab explore --target XAUUSD --timeframe 1H --dir data/reference --figures docs/status/figures
+```
+
+**What to read, and why each one is there.** Every panel exists because the original project's EDA got the same question wrong in a way that is invisible from the code.
+
+- **Two normality tests, not one.** Both reject, and they mean opposite things. The price fails for having tails *shorter* than a normal - it is bounded and was trending - which licenses nothing. Returns fail for tails reaching ten standard deviations, which is why a Sharpe ratio's textbook confidence interval will be wrong later.
+- **The correlation table, read left to right.** `On levels` is what the original reported; `On returns` is what a model sees. Gold against the S&P goes from +0.919 to +0.139. Watch WTIUSD and USDJPY: they change sign between the two columns.
+- **The yearly table.** The `Rose` column drifts about three points across the sample, which is more than the effect anyone is trying to detect - so which years fall in the test block matters.
+
+## 5. Labels, splits, and the numbers a model must beat
 
 ```
 uv run forecast-lab baseline --target XAUUSD --timeframe 1H --dir data/reference
@@ -81,7 +94,7 @@ uv run forecast-lab baseline --target XAUUSD --timeframe 1H --dir data/reference
 
 Break-even against the friendliest cost assumption is **51.92%**. Nothing available without a model reaches it.
 
-## 5. The feature matrix
+## 6. The feature matrix
 
 ```
 uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/reference
@@ -108,7 +121,7 @@ To check the pipeline is genuinely symbol-agnostic, point it somewhere else:
 uv run forecast-lab features --target BTCUSD --timeframe 1H --dir data/reference --mode whole
 ```
 
-## 6. Fitting the models
+## 7. Fitting the models
 
 ```
 uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference
@@ -135,9 +148,9 @@ Eight PNGs, four per block. Start with `edge-<block>.png`: every configuration a
 
 **The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate, and it doubled the command's runtime: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
 
-If a model cannot be loaded, the command prints it and continues - see sec. 8 for the reason that happens on Windows.
+If a model cannot be loaded, the command prints it and continues - see sec. 9 for the reason that happens on Windows.
 
-## 7. The network tests
+## 8. The network tests
 
 Excluded from the gates so the default run is hermetic - no network, any OS, fast. They hold the venue to its side of the contract: that hourly bars still open exactly on the hour (the invariant the whole alignment design rests on), that both sides combine into a positive spread, and that every mapped instrument still exists.
 
@@ -147,7 +160,7 @@ uv run python -m pytest -m network
 
 Run them when the data source misbehaves or before trusting a fresh `fetch`.
 
-## 8. When something fails
+## 9. When something fails
 
 **`DLL load failed ... an application control policy blocked this file`** - Windows Smart App Control blocking an unsigned binary extension. Two forms:
 
@@ -176,6 +189,6 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **The OneDrive exports fail to read** - Files On-Demand leaves placeholder stubs on disk. Open the folder in Explorer and let it hydrate before pointing `ingest --from` at it.
 
-## 9. What is not built yet
+## 10. What is not built yet
 
 `train` is where the pipeline currently stops. What is missing is the evaluation rather than the modelling: transaction costs and the break-even threshold, walk-forward validation to replace a single split whose minimum detectable effect is 2.17 points (larger than any edge worth having), and the significance battery that accounts for having scored eighteen configurations. Those turn "-0.21%" into a verdict instead of a number.

@@ -52,6 +52,10 @@ class Fitted:
     probabilities: dict[str, pd.Series]
     #: Components retained, when the representation is a PCA.
     components: int | None = None
+    #: Share of training variance each retained component explains. The curve behind the
+    #: component count: reporting "6 components" without it hides whether the sixth was
+    #: carrying anything or was rounding error.
+    explained_variance: tuple[float, ...] = ()
 
     @property
     def key(self) -> str:
@@ -126,14 +130,18 @@ def fit_and_predict(
         probabilities[name] = pd.Series(proba, index=x_block.index, name="p_up")
 
     components = None
+    explained: tuple[float, ...] = ()
     if variance is not None:
-        components = int(pipeline.named_steps["pca"].n_components_)
+        pca = pipeline.named_steps["pca"]
+        components = int(pca.n_components_)
+        explained = tuple(float(v) for v in pca.explained_variance_ratio_)
 
     return Fitted(
         model=spec.name,
         representation="raw" if variance is None else f"pca-{int(variance * 100)}",
         probabilities=probabilities,
         components=components,
+        explained_variance=explained,
     )
 
 
