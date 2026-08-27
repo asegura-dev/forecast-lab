@@ -107,7 +107,7 @@ Both are zero. Keeping VIX costs **more than half the available sample** to buy 
 - **Dukascopy becomes the canonical source of the engine.** The Capital.com CSVs stay as the historical reference, used once to reproduce the notebook's baseline.
 - **VIX is dropped from the feature set.** The modelling window becomes **2018-01 -> today, 51,073 hourly bars** - more than double what the original project had.
 - **Realised volatility is computed instead**, causally, from the target and from the S&P - free, available across the whole window, and dependent on no external symbol.
-- **The measured spread (~ 1.6 bps) replaces the assumed cost** in the break-even calculation.
+- **The measured spread (~ 1.6 bps) is what the break-even calculation should use** once a cost model exists. It does not yet: the 51.92% quoted across this repository is still the optimistic 1 bp figure carried from planning, and 1.6 bps would put break-even nearer 53%.
 - A side effect worth naming: because the data is now fetchable with one command and no API key, **anyone who clones the repository can reproduce every number**. The previous plan had the raw data gitignored with no public source, which would have made the repository unrunnable by a reviewer - the single worst property a portfolio piece can have.
 
 ## 8. Caveats

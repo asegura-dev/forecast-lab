@@ -13,7 +13,10 @@
 | Total | 23,181 | |
 | Labelled at the stated horizon | 22,167 | 95.63% |
 | Unlabelled - the horizon spans a gap | 1,013 | **4.37%** |
-| Exact ties, held out of the direction | 36 | 0.16% |
+| Unlabelled - the last bar, which has no successor | 1 | |
+| *of the labelled*: exact ties, held out of the direction | 36 | 0.16% |
+
+The first three rows sum to 23,181. The ties are a subset of the labelled rows rather than a fourth category - a tie is a bar whose answer was found and turned out to be zero.
 
 The 1,013 are the rows where `close.shift(-1)` would have reached across two hours, or across fifty, while reporting the result as an hourly move. They are marked, not dropped: `seconds_ahead` records how far the next bar actually sits, and `next_change` records what price did over that distance.
 
@@ -87,7 +90,7 @@ Break-even accuracy against the most optimistic cost assumption - a one basis po
 
 Everything available without a model is below the line. That is not evidence that no edge exists, and this log does not claim it is - it is the neighbourhood a claimed edge has to be measured against, fixed before any model exists rather than after one has been chosen. The point of establishing it now is that it can no longer be moved.
 
-And the resolution problem is visible in the same table: the gap between the top two rows is 0.22 points, while a 3,478-bar test block resolves about 0.85 points at 80% power. **This design cannot tell those two rows apart.** That is the argument for walk-forward validation in Phase 2, stated with the numbers rather than as a preference.
+And the resolution problem is visible in the same table: the gap between the top two rows is 0.22 points, while one standard error over 3,478 bars is 0.85 points and the minimum detectable effect at 80% power is **2.11 points**. **This design cannot tell those two rows apart, and could not tell them apart if the gap were ten times larger.** That is the argument for walk-forward validation in Phase 2, stated with the numbers rather than as a preference.
 
 ## 6. What changed in the repository because of this
 

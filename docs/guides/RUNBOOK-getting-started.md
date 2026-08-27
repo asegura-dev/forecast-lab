@@ -21,7 +21,7 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `218 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 6).
+Expect `218 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 7).
 
 **Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 8.
 
@@ -88,7 +88,7 @@ uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/reference
 uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/reference --mode whole
 ```
 
-Expect **22,982 rows x 17 columns** in focus mode and **x 179** in whole - and, critically, **the same index in both**. The original project's two modes covered different rows (24,232 against 22,441), so comparing them mixed a change of feature set with a change of sample.
+Expect **22,982 rows x 19 columns** in focus mode and **x 199** in whole - and, critically, **the same index in both**. The original project's two modes covered different rows (24,232 against 22,441), so comparing them mixed a change of feature set with a change of sample.
 
 **Reading the table:**
 
@@ -96,7 +96,7 @@ Expect **22,982 rows x 17 columns** in focus mode and **x 179** in whole - and, 
 - **`Worst row`** is reported and never decides. A large worst beside a tiny p99 means a numerical instability, not a price level.
 - **`ADF p` and `KPSS p` are diagnostics, never gates.** At n = 5,000 the ADF rejects a unit root on almost anything, and both tests are invalid under the heteroskedasticity and regime change that characterise this data. Columns where the two disagree are counted and reported rather than resolved by picking a favourite.
 
-Every command producing a result also takes `--json`, because the dashboard runs these commands rather than reimplementing them:
+The analysis commands also take `--json`, because the dashboard runs them rather than reimplementing them:
 
 ```
 uv run forecast-lab features --target XAUUSD --timeframe 1H --json
@@ -115,7 +115,7 @@ uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference
 uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference --no-pca
 ```
 
-Six estimators x three representations (raw, PCA at 95% and 90%), about six seconds.
+Six estimators x three representations (raw, PCA at 95% and 90%), about twelve seconds.
 
 **Reading the output.** Two tables: validation first, then test. Selection happens on the validation table and the test table is scored afterwards - the order on screen is the order of operations, not a layout choice.
 
@@ -123,7 +123,7 @@ Six estimators x three representations (raw, PCA at 95% and 90%), about six seco
 - **`Spec.`** at 0.00% with high recall means the model is a constant. The command says so explicitly when it happens.
 - **`Repr.`** shows the retained component count in brackets for PCA rows - `pca-90 (6)` means 90% of the training variance needed six components.
 
-Expect the run to select **LightGBM** and report it losing to the baseline by about 0.64 points. That is the project's central finding reproduced from data, and [STATUS 2026-08-24](../status/STATUS-2026-08-models.md) works through what it does and does not establish.
+Expect the run to select **XGBoost** and report it losing to the baseline by about 0.21 points. That is the project's central finding reproduced from data, and [STATUS 2026-08-24](../status/STATUS-2026-08-models.md) works through what it does and does not establish.
 
 Add `--figures` to write the charts:
 
@@ -133,7 +133,7 @@ uv run forecast-lab train --target XAUUSD --timeframe 1H --figures docs/status/f
 
 Eight PNGs, four per block. Start with `edge-<block>.png`: every configuration as a bar, with the constant predictor and the break-even accuracy as vertical lines. A bar left of the red line is a model that lost to a rule with no parameters. `confusion-<block>.png` is the other one worth reading closely - if a model's DOWN row and UP row look the same, it is predicting UP at the same rate whether price rose or fell, which is what no signal looks like.
 
-**The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate and it cost eight seconds: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
+**The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate, and it doubled the command's runtime: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
 
 If a model cannot be loaded, the command prints it and continues - see sec. 8 for the reason that happens on Windows.
 
@@ -166,7 +166,7 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **`No such directory: data\raw`** - `data/` is gitignored, so a fresh clone has none. Go back to sec. 2. This also catches out a second clone of this repo on the same machine: the code is in git, the data is not.
 
-**`No 1H series for XAUUSD in data\raw`** - you fetched into one directory and are reading from another. `fetch` writes to `data/raw`, `ingest` writes to `data/reference`, and every command takes `--dir`.
+**`No 1H series for XAUUSD in data\raw`** - you fetched into one directory and are reading from another. `fetch` writes to `data/raw`, `ingest --from <path>` writes to `data/reference`, and every command that *reads* a series takes `--dir`.
 
 **`verify` reports a mismatch** - the bytes on disk are not the bytes a published number was computed from. Either the venue revised a bar, or a file was edited. Re-fetch and re-run rather than updating the manifest to match, which would be recording the discrepancy as the truth.
 
@@ -178,4 +178,4 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 ## 9. What is not built yet
 
-`train` is where the pipeline currently stops. What is missing is the evaluation rather than the modelling: transaction costs and the break-even threshold, walk-forward validation to replace a single split that resolves only 0.85 points, and the significance battery that accounts for having scored eighteen configurations. Those turn "-0.64%" into a verdict instead of a number.
+`train` is where the pipeline currently stops. What is missing is the evaluation rather than the modelling: transaction costs and the break-even threshold, walk-forward validation to replace a single split whose minimum detectable effect is 2.17 points (larger than any edge worth having), and the significance battery that accounts for having scored eighteen configurations. Those turn "-0.21%" into a verdict instead of a number.

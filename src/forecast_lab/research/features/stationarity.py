@@ -2,9 +2,10 @@
 
 Gold runs from 1,616 to 4,378 across this sample. Any feature carrying that level has a
 test block sitting outside the support of its training data, and a model fitted on one
-is extrapolating rather than predicting. It is the defect that explains why the original
-pipeline's PCA at 90% variance collapsed 63 features into **6 components**: most of them
-were the same price wearing different hats.
+is extrapolating rather than predicting. It looked like the explanation for the original
+pipeline's PCA at 90% collapsing 63 features into **6 components** - though with every
+level removed, PCA still retains 6 from 17, so the levels made the redundancy worse
+rather than causing it.
 
 The policy has three layers, in descending order of how much they can be trusted.
 
@@ -17,9 +18,10 @@ claim about what a function does, and this is an observation of what it did.
 
 **Layer 2 - reported, never a gate.** ADF and KPSS on every column, printed as
 diagnostics. They are *not* pass/fail here and treating them as such would be a false
-guarantee: with n around 23,000 the ADF rejects a unit root on almost anything, and both
-tests are invalid under heteroskedasticity and regime change - which is the entire
-character of this data. A column can clear both and still shift its mean between blocks.
+guarantee: the tests read the last 5,000 rows of a column, and at that length the ADF
+rejects a unit root on almost anything. Both are also invalid under heteroskedasticity
+and regime change, which is the entire character of this data. A column can clear both
+and still shift its mean between blocks.
 
 **Layer 3 - the one that actually matters, and it lives elsewhere.** Distribution shift
 *between splits*: PSI and KS per feature, plus adversarial validation - can a classifier
@@ -52,7 +54,7 @@ SCALE_PROBE = 10.0
 #: A column is called scale-dependent when the probe moves it by more than this.
 #:
 #: Measured rather than chosen. With the statistic below, the worst movement among
-#: genuinely scale-free columns on the real gold series is **6.9e-10**, while a raw price
+#: genuinely scale-free columns on the real gold series is **7.0e-10**, while a raw price
 #: level moves by **8.5e+00**. This threshold sits three orders above the noise and six
 #: below a real violation.
 SCALE_TOLERANCE = 1e-6
@@ -65,7 +67,7 @@ SCALE_TOLERANCE = 1e-6
 #: the recursion carries state forward, that single flipped comparison contaminates a
 #: long run of subsequent rows before decaying. On the real series that shows up as
 #: **134 deviating rows out of 23,181 (0.58%), at consecutive positions**, pushing the
-#: maximum to 7.1e-03 while the 99th percentile stays at 6.9e-10.
+#: maximum to 7.1e-03 while the 99th percentile stays at 7.0e-10.
 #:
 #: ADX is dimensionless by construction, so the maximum was measuring an artefact of
 #: float64 rather than a property of the feature. A percentile is robust to that and

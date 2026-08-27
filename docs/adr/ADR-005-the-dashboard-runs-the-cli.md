@@ -2,7 +2,7 @@
 
 - **Status:** **Plan** - decided now because it constrains what every command built from here on has to emit. Built in Phase 4.
 - **Date:** 2026-08-23
-- **Follows:** [ADR-001](ADR-001-hexagonal-architecture.md) - which makes `interfaces/` the only layer permitted to touch the filesystem, and therefore makes a second interface a real architectural question rather than a styling one.
+- **Follows:** [ADR-001](ADR-001-hexagonal-architecture.md) - which makes `interfaces/` the only layer that decides what to read and where to write, and therefore makes a second interface a real architectural question rather than a styling one.
 - **Context:** The project needs a Streamlit dashboard - the results are tables and distributions, and a reader who will not clone a repository will still open a page. The obvious way to build one is to import `forecast_lab.research` from a Streamlit script and call the functions directly. That is the way this decision refuses, and the reason is worth writing down before the first page exists rather than after the second copy of the logic has drifted.
 
 ## Decision
@@ -11,7 +11,7 @@
 
 The dashboard builds an argument list, runs the console script, parses the JSON on stdout, and renders it. It imports nothing from `forecast_lab` except, at most, the package name it is invoking.
 
-*Why:* the alternative creates a second composition root. `interfaces/cli.py` is currently the only module that reads a file, resolves a path, decides which series answers `--target XAUUSD`, and hands frames to `research`. A Streamlit script that imports `research` directly must redo all of that - and it will redo it slightly differently. The version that drifts is the one nobody runs the gates against, and the failure mode is specific and ugly: the dashboard shows a number, the CLI shows a different number, and both are computed by code that passes its tests.
+*Why:* the alternative creates a second composition root. `interfaces/cli.py` is currently the only module that resolves a path, decides which series answers `--target XAUUSD`, and hands frames to `research`. A Streamlit script that imports `research` directly must redo all of that - and it will redo it slightly differently. The version that drifts is the one nobody runs the gates against, and the failure mode is specific and ugly: the dashboard shows a number, the CLI shows a different number, and both are computed by code that passes its tests.
 
 There is also a claim this repository makes and should be able to demonstrate. It calls itself a reproducible measurement instrument, and every published figure carries the command that produced it. If the dashboard is a second implementation, that claim covers the CLI and quietly excludes the page most readers will actually look at. If the dashboard *is* the commands, then the page is a live demonstration of the claim: what is on screen was produced by the same invocation printed underneath it.
 
@@ -37,10 +37,10 @@ Read-only commands only. Anything that downloads or writes to `data/` stays a de
 
 ## Consequences
 
-**A constraint on everything built from here.** Every command that produces a result must offer `--json`, and the payload must carry the numbers rather than sentences about them. That is already true of `baseline`; it becomes a requirement for `features`, `evaluate` and whatever follows. Cheap when applied at the moment a command is written, expensive when retrofitted across a dozen of them, which is why this is decided in Phase 1 for a thing built in Phase 4.
+**A constraint on everything built from here.** Every analysis command must offer `--json`, and the payload must carry the numbers rather than sentences about them. That is true of `baseline`, `features` and `train`; `align` is the one gap and closes before Phase 4, since the dashboard needs the alignment panel. Cheap when applied at the moment a command is written, expensive when retrofitted across a dozen of them, which is why this is decided in Phase 1 for a thing built in Phase 4.
 
 **A subprocess per panel is slower than a function call**, and the trade-off is accepted with a number attached: `baseline` runs in 0.8 seconds on the full reference series, which is well inside what a page can absorb behind a spinner. The moment a command exceeds that, the answer is to make the command faster or to cache its JSON keyed by the manifest hash - not to bypass it. Caching on the hash is the right key precisely because [ADR-002](ADR-002-data-source-and-symbol-set.md) already makes the hash the identity of the inputs.
 
-**The dashboard becomes testable without Streamlit.** Its logic is "build an argument list, parse JSON" - which a unit test can exercise directly, while the payload shapes are pinned by the CLI's own tests. A dashboard that imported `research` would need Streamlit's own test harness to check anything at all.
+**The dashboard becomes testable without Streamlit.** Its logic is "build an argument list, parse JSON", which a unit test can exercise directly. The payload shapes, however, are **not** pinned by anything yet: there is no test that exercises `interfaces/cli.py`, so `_baseline_payload`, `_features_payload` and `_train_payload` can change shape without a gate noticing. That is a debt this ADR creates rather than one it inherits, and it has to close before the dashboard depends on them. A dashboard that imported `research` would need Streamlit's own test harness to check anything at all.
 
 **If this turns out to be wrong, the exit is visible.** The failure condition is a panel that genuinely needs an interactive object rather than a result - a live-refitting model, a slider that re-runs a fit at each tick. If that arrives, the answer is a new command that takes the parameter, not an import. If *that* stops working, this ADR gets superseded and the reason gets written down, which is the point of recording the decision at Plan status now.

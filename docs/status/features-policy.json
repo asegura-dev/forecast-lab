@@ -6,7 +6,7 @@
     "XAUUSD"
   ],
   "rows": 22982,
-  "columns": 17,
+  "columns": 19,
   "warmup_dropped": 199,
   "first": "2022-01-13T14:00:00+00:00",
   "last": "2025-12-01T23:00:00+00:00",
@@ -37,6 +37,24 @@
       "relative_change": 5.371222595638783e-15,
       "worst_change": 6.397889851681627e-15,
       "adf_pvalue": 9.752402431847556e-07,
+      "kpss_pvalue": 0.01,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_realised_vol_24",
+      "scale": "scale-free",
+      "relative_change": 1.078292277070303e-14,
+      "worst_change": 1.6785561964920303e-14,
+      "adf_pvalue": 0.00018131943195259334,
+      "kpss_pvalue": 0.012022700509940597,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_realised_vol_168",
+      "scale": "scale-free",
+      "relative_change": 6.662196323721384e-15,
+      "worst_change": 8.993965037023868e-15,
+      "adf_pvalue": 0.12644816754556903,
       "kpss_pvalue": 0.01,
       "n_finite": 5000
     },

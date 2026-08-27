@@ -1,6 +1,6 @@
 # ADR-002 - The data source and the symbol set: a fetchable venue, and no VIX
 
-- **Status:** Accepted - **built**. Probe done, verdict measured ([STATUS-2026-08-dukascopy-probe](../status/STATUS-2026-08-dukascopy-probe.md)). Nothing built yet; the `fetch` and `ingest` commands are slice 2 of Phase 1.
+- **Status:** Accepted - **built**. Probe done, verdict measured ([STATUS-2026-08-dukascopy-probe](../status/STATUS-2026-08-dukascopy-probe.md)). See *Implementation status* for what has actually been executed since.
 - **Date:** 2026-08-18
 - **Follows:** [ADR-001](ADR-001-hexagonal-architecture.md) - this decides what flows in through the boundary that ADR-001 defines.
 - **Context:** A research repository whose entire claim is that its numbers are trustworthy needs a data source with three properties: **a stranger can fetch it** (otherwise no published figure is verifiable), **it extends forward** (otherwise the sample is frozen and no genuinely out-of-sample window can ever exist), and **its provenance can be hashed** (otherwise a result cannot be tied to the bytes that produced it). This ADR picks that source, and - because history depth is not uniform across instruments - it also settles the symbol set, since the symbol set is what silently decides the modelling window.
@@ -11,7 +11,7 @@
 
 *Why:* it publishes to a public CDN with **no API key and no registration**, so the dataset is regenerable by anyone who clones the repository: `forecast-lab fetch`, and every published number can be checked. It also reaches back far enough that the window is chosen by the research question rather than by the vendor, and it keeps advancing, which is what makes a genuinely unseen holdout possible at all.
 
-A second dataset has a narrow, separate role. The academic project this work re-analyses used hourly exports from a different venue (Capital.com, via TradingView), and its published results are the baseline this repository sets out to reproduce and correct. Those files therefore live in `data/reference/`, are read exactly once to regenerate that baseline for the STATUS log, and never feed the engine.
+A second dataset has a narrow, separate role. The academic project this work re-analyses used hourly exports from a different venue (Capital.com, via TradingView), and its published results are the baseline this repository sets out to reproduce and correct. Those files therefore live in `data/reference/`, are read to regenerate that baseline for the STATUS logs, and do not feed the engine. *That separation was documented on 2026-08-18 and only executed on 2026-08-26; see Implementation status.*
 
 | | `data/raw/` | `data/reference/` |
 |---|---|---|
@@ -54,7 +54,7 @@ The contribution of VIX was measured rather than argued. Over 21,156 hourly bars
 
 ### 4. Realised volatility replaces it, computed causally
 
-Rolling realised volatility of the target and of the S&P 500, from log returns, with explicit window and `min_periods`, never an expanding window over the whole sample.
+Rolling realised volatility of the target and of the S&P 500, from log returns, with explicit window and `min_periods`, never an expanding window over the whole sample. Built as `realised_vol_24` and `realised_vol_168` in `research/features/technical.py`, at the windows this decision's own probe measured: the correlation with VIX's level is +0.645 at 24h and flat past a week at +0.754, so seven days buys the tracking at the shortest warm-up.
 
 *Why:* it tracks the level of the fear regime at **+0.75** against VIX, is free, exists across the entire window, and depends on no external symbol, so it can never be the thing that shortens the sample again.
 
@@ -91,13 +91,13 @@ The deeper reason it belonged elsewhere: whether a grid property is harmful depe
 - The repository becomes **runnable by a stranger**: clone, fetch, and every published number can be reproduced. This is the single largest gain of this ADR, and it was a side effect rather than the goal.
 - The modelling window grows to **51,073 bars**, which lowers the minimum detectable effect from 52.12% to 51.42% on a single split - the quantity that governs whether this project's verdict can mean anything.
 - Dukascopy returns a **volume** column the reference exports lack, re-opening volume-based indicators (OBV, MFI, CMF, VWAP). Not used yet; recorded because it changes what is possible.
-- The engine now depends on a network fetch. The three quality gates stay hermetic because tests run on a committed synthetic fixture, and network tests are opt-in behind `pytest -m network`.
+- The engine now depends on a network fetch. The three quality gates stay hermetic because tests construct synthetic bars in code, and network tests are opt-in behind `pytest -m network`.
 - Dukascopy's data licensing terms are **not published**. The repository redistributes no raw data and publishes only derived statistics, which is standard practice in quantitative research, but the terms remain unread because they are unavailable to read. Recorded as a known exposure.
 - Its indices and commodities are CFDs from its own liquidity pool rather than official exchange prints - the same class of instrument the reference exports were, which is why the two agree so closely.
 
 ## Implementation status
 
-Nothing built. The probe that produced the verdict ran outside the repository in an ephemeral environment and wrote nothing into it.
+The probe that produced the verdict ran outside the repository in an ephemeral environment and wrote nothing into it.
 
 **Built (2026-08-19):** `fetch`, `ingest --from` and `verify`, plus the reader and the manifest behind them. All 34 reference exports import and verify (**462,674 bars**, 12 symbols); `fetch` downloads both offer sides and writes mid prices with the per-bar spread. Fifteen opt-in network tests hold the venue to its side of the contract, including that all twelve mapped instruments still exist.
 
@@ -106,5 +106,27 @@ Nothing built. The probe that produced the verdict ran outside the repository in
 - The grid rule of sec. 6 rejected six legitimate files on first contact with real data. Rewritten above with the measurements that refuted it.
 - Manifest paths were recorded relative to each command's destination, so a reference import and a fetch both produced the key `XAUUSD_1H.csv` and would have overwritten one another. Paths are now relative to `data/`, and the same collision reappeared once more in the row-count lookup before it was closed there too.
 - The spread proved the design: measured at the weekly open it is **9.5 USD against a mid-session 0.75** on gold. A constant cost assumption would have hidden an order of magnitude.
+
+**Built (2026-08-26), and a week late:** the canonical dataset this ADR is about. `fetch` had only ever been run as a 240-bar smoke test, so **every published number in this repository was computed on the reference exports** - the dataset sec. 1 says must *never feed the engine*. The decision was written, agreed, and then not executed, and nothing in the pipeline could notice: both directories read identically, and every command was simply pointed at the one that had data in it.
+
+The canonical set now exists: **11 symbols, 606,250 hourly bars, 2018-01 to date**, verified against a manifest of 45 entries. Gold alone goes from 23,181 bars to **51,147**.
+
+Running the pipeline on both is what makes the two roles worth having, and it produced a corroboration the single dataset could not:
+
+| | reference (Capital.com) | canonical (Dukascopy) |
+|---|---:|---:|
+| Hourly bars of gold | 23,181 | **51,147** |
+| Bars whose horizon spans a gap | 4.37% | **4.37%** |
+| UP across those gaps | 59.35% | **56.40%** |
+| UP across the stated horizon | 50.87% | 50.76% |
+| Exact ties | 36 | 15 |
+
+The gap fraction is **identical to two decimal places across two venues and twice the sample** - it is a property of gold's trading calendar, not of a provider. And the gap skew reproduces: price rises through the pause far more often than through an ordinary hour, at both venues. A finding measured once is an observation; measured twice on independent data it is a finding.
+
+**And it changes the project's central argument.** A single 70/15/15 split of the reference data leaves 3,478 test bars and a minimum detectable effect of 2.11 points - which cannot resolve the 1.92-point break-even it exists to test. The same split of the canonical data leaves **7,334 bars and an MDE of 1.45 points**, which can. What was "this design needs walk-forward" becomes "this design needed walk-forward *or* more data", with both routes now available and measured.
+
+**Also built (2026-08-27):** realised volatility (sec. 4), which this ADR had described in the present tense since 2026-08-18 and which did not exist. Dropping VIX cost 55% of the sample on the promise of a substitute that was never written. It is now `realised_vol_24` and `realised_vol_168`, and adding it changed which model the pipeline selects - see [STATUS 2026-08-24](../status/STATUS-2026-08-models.md) sec. 5.
+
+**The lesson is the one worth keeping.** Three of this ADR's decisions were documented as done and were not: the canonical dataset, the realised volatility, and the fixture that the gitignore described. A Status line saying "built" is a claim like any other, and this repository's own rule - anchor every claim in the code - applies to it. An audit found all three; nothing in the gates could have.
 
 Remaining: measure the venue's 4-hour and daily anchors (sec. 5), still unknown - the anchors measured so far are the reference venue's.

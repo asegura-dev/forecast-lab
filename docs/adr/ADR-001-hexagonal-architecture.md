@@ -16,18 +16,18 @@ interfaces --+--> ingest ----+
 
 ```
 src/forecast_lab/
-    contracts/    Timeframe, SymbolSpec, SeriesMeta, RunConfig, errors
-    ingest/       catalog, csv_reader, fetch, manifest
-    research/     align, features/, labeling, evaluation/
+    contracts/    Timeframe, SymbolSpec, SeriesMeta, errors
+    ingest/       catalog, csv_reader, dukascopy, importer, manifest
+    research/     align, labeling, splitting, baselines, plots, features/, models/
     interfaces/   cli.py - the composition root
 ```
 
 - **contracts** - validated data and the vocabulary of the domain. Imports nothing of ours.
 - **ingest** - knows where bytes come from (a file on disk, an HTTP CDN) and turns them into series.
-- **research** - alignment, features, labels, evaluation. Pure computation over data handed to it.
-- **interfaces** - the CLI. The only place that imports concrete implementations, and the only place that touches the filesystem or the network.
+- **research** - alignment, labels, splits, baselines, features, models and figures. Pure computation over data handed to it.
+- **interfaces** - the CLI. The only place that imports concrete implementations, and the only place that *decides* what to read and where to write; `ingest` performs the I/O but is always handed a path.
 
-*Why:* the golden rule is that **research never reaches for data**. It cannot open a file, cannot call an API, cannot know where anything lives. That is what makes an experiment reproducible from stored inputs, and an experiment that can quietly re-read the world is one whose results cannot be falsified.
+*Why:* the golden rule - and the one a test enforces - is that **research never reaches for data**. It cannot open a file, cannot call an API, cannot save a figure, cannot know where anything lives. That is what makes an experiment reproducible from stored inputs, and an experiment that can quietly re-read the world is one whose results cannot be falsified.
 
 **Trade-off:** more files than a script, and a composition root that has to wire things explicitly. For a one-off analysis this would be overhead. For a repository whose entire claim is that its numbers are trustworthy, the structure *is* the claim.
 
@@ -45,7 +45,7 @@ The distinction worth keeping: this is not an argument that ports are wrong. It 
 
 `contracts/` holds frozen, `extra="forbid"` Pydantic models for the run configuration, the symbol specification and the series metadata. Bars and the feature matrix travel as pandas DataFrames. Internal computation results are frozen dataclasses.
 
-*Why:* validate once at the edge, then trust. A misnamed upstream field must **explode at the boundary**, not flow half-parsed into a result. But wrapping 51,000 bars across 11 symbols in Pydantic models would cost real time and buy nothing: pandas is the correct tool for numeric tabular data, and the bugs this project actually suffers from live in the frame's *shape and index*, which Pydantic would not see anyway.
+*Why:* validate once at the edge, then trust. A misnamed upstream field must **explode at the boundary**, not flow half-parsed into a result. But wrapping tens of thousands of bars across a dozen symbols in Pydantic models would cost real time and buy nothing: pandas is the correct tool for numeric tabular data, and the bugs this project actually suffers from live in the frame's *shape and index*, which Pydantic would not see anyway.
 
 **Trade-off:** the most dangerous object in the system, the feature matrix, is the least validated by the type system. That is why the guarantees about it are tests - no price levels survive, the two feature modes share an index, the alignment fabricates nothing - rather than annotations.
 

@@ -1,7 +1,7 @@
 # STATUS 2026-08-24 - The feature matrix, and a rule that real data corrected twice
 
 - **Question:** can the matrix carry everything the original project's indicators carried, **without** carrying the price level - and can the repository prove the second half rather than assert it?
-- **Verdict:** **Yes, and the proof turned out to be harder to write than the matrix.** All seventeen columns clear the scale-freedom gate, and the gate itself had to be corrected twice on contact with real data - once in its threshold, once in its statistic.
+- **Verdict:** **Yes, and the proof turned out to be harder to write than the matrix.** All nineteen columns clear the scale-freedom gate, and the gate itself had to be corrected twice on contact with real data - once in its threshold, once in its statistic.
 - **Command:** `forecast-lab features --target XAUUSD --timeframe 1H --dir data/reference`
 - **Machine-readable output:** [features-policy.json](features-policy.json)
 - **Inputs:** `reference/*.csv`, hashed in [data-manifest.json](data-manifest.json).
@@ -10,8 +10,8 @@
 
 | Mode | Rows | Columns | Symbols |
 |---|---:|---:|---:|
-| focus | 22,982 | 17 | 1 |
-| whole | 22,982 | 179 | 10 |
+| focus | 22,982 | 19 | 1 |
+| whole | 22,982 | 199 | 10 |
 
 **The two modes share an index exactly**, and a test asserts it. The original project's did not - its WHOLE included crypto, which begins a year after everything else, so the two ran over 24,232 and 22,441 rows respectively. Every difference between them mixed a change of feature set with a change of sample, which is why its comparison of the two never meant anything.
 
@@ -33,6 +33,7 @@ The original `indicator_creator` produces **23 columns per symbol**. Every one i
 | `ATR` | `atr_pct` | as a fraction of price |
 | `Returns`, `Log_Returns` | `return`, `log_return` | |
 | - | `range_pct` | new |
+| - | `realised_vol_24`, `realised_vol_168` | new - the substitute for VIX that ADR-002 promised and had never been built |
 
 **The original's defect was narrower than "it lacked scale-free features", and that makes it more instructive.** It computed `Dist_SMA200` and its siblings itself - exactly the normalisation used here. What it did not do was *remove what the correction replaced*: the distances and the raw `SMA_200`, `EMA_12`, `BB_HIGH`, `BB_MID`, `BB_LOW`, `MACD` and `ATR` all sat in the same matrix. **Twelve of its twenty-three per-symbol columns carry the price level, beside their own normalised versions.** Nobody forgot the correction. Nobody deleted the thing it corrected.
 
@@ -47,7 +48,7 @@ Every column is rebuilt on prices multiplied by ten. A column that moves is a pr
 | | Value |
 |---|---:|
 | Maximum deviation | 7.127e-03 |
-| 99th percentile | 6.908e-10 |
+| 99th percentile | 6.988e-10 |
 | Median | 4.170e-15 |
 | Rows deviating by more than 1e-6 | **134 of 23,181 (0.58%)** |
 | Position of those rows | **consecutive** - 4586, 4587, 4588, ... |
@@ -60,7 +61,7 @@ Consecutive rows are the signature of a recursion. `ta`'s ADX is a Wilder smooth
 
 ## 4. The result
 
-All seventeen columns: **scale-free**.
+All nineteen columns: **scale-free**.
 
 | Column | p99 | Worst row |
 |---|---:|---:|
@@ -70,17 +71,20 @@ All seventeen columns: **scale-free**.
 | `dist_ema_12/26` | ~2e-14 | ~3e-14 |
 | `rsi_14` | 8.2e-15 | 1.9e-14 |
 | `roc_12` | ~4e-15 | ~4e-15 |
-| `adx_14` | **6.9e-10** | **7.1e-03** |
+| `adx_14` | **7.0e-10** | **7.1e-03** |
 | `macd`, `macd_signal`, `macd_diff` | ~6e-14 | ~1e-13 |
 | `atr_pct` | 4.0e-15 | 7.2e-15 |
 | `bb_wband` | 3.6e-11 | 8.8e-11 |
 | `bb_pband` | 1.8e-10 | 1.3e-09 |
+| `realised_vol_24`, `realised_vol_168` | ~1e-14 | ~2e-14 |
 
 The `adx_14` row is the one to look at: the two columns differ by seven orders of magnitude, and the table says so instead of picking one.
 
 ## 5. Layer 2, reported and never decisive
 
-ADF returns **p = 0.000 for sixteen of seventeen columns**, which is exactly why it is not a gate. At this sample size it rejects a unit root on almost anything, and both ADF and KPSS are invalid under the heteroskedasticity and regime change that characterise this data. **Three columns have ADF and KPSS pointing opposite ways**, reported as the honest outcome for a series that is neither clearly stationary nor clearly a random walk.
+ADF returns **p = 0.000 for almost every column**, which is exactly why it is not a gate. At this sample size it rejects a unit root on almost anything, and both ADF and KPSS are invalid under the heteroskedasticity and regime change that characterise this data. **Four columns have ADF and KPSS pointing opposite ways**, reported as the honest outcome for a series that is neither clearly stationary nor clearly a random walk.
+
+And one column makes the case for reporting rather than gating better than any argument could: **`realised_vol_168` is the only column the ADF does not reject** (p = 0.126). Seven-day volatility is persistent - close to a random walk in levels - which is exactly what it should look like. A gate would have thrown out the feature this project built to replace VIX, on a test that is invalid for this data anyway.
 
 **"Carries no price level" is necessary, not sufficient**, and this log should not be read as a clean bill of health. `dist_sma_200` shifts its mean from 0.0024 to 0.0068 between train and test; `atr_pct` rises 37% in test. Both are scale-free. Both clear layers 1 and 2. What catches them is distribution shift measured **between blocks**, which is the next piece of work.
 

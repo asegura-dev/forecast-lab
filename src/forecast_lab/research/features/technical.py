@@ -56,6 +56,21 @@ BOLLINGER_WINDOW = 20
 #: MACD's slow EMA is 26 bars and its signal line smooths that over another 9.
 MACD_WINDOW = 26 + 9
 
+#: Windows for realised volatility, in hourly bars: one day and seven days.
+#:
+#: Chosen from measurement rather than taste. The probe that dropped VIX compared it
+#: against annualised rolling realised volatility of the S&P at four windows, and the
+#: correlation with VIX's *level* was +0.645 at 24h, +0.744 at 5d, **+0.754 at 7d** and
+#: +0.755 at 21d - flat past a week, so 7 days buys the tracking at the shortest warm-up
+#: (STATUS 2026-08-18). The 24-hour window is kept beside it because a session-scale
+#: measure answers a different question from a week-scale one.
+REALISED_VOL_WINDOWS = (24, 24 * 7)
+
+#: Hourly bars in a year, for annualising. The venue trades around the clock on
+#: weekdays, so this is 24 x 365 rather than a 252-day equity convention - the series
+#: being measured has weekend gaps, not weekend zeros.
+BARS_PER_YEAR = 24 * 365
+
 #: The longest window any indicator uses. Everything before this many bars is warm-up.
 LONGEST_WINDOW = max(
     *SMA_WINDOWS,
@@ -66,6 +81,7 @@ LONGEST_WINDOW = max(
     ATR_WINDOW,
     BOLLINGER_WINDOW,
     MACD_WINDOW,
+    *REALISED_VOL_WINDOWS,
 )
 
 _REQUIRED = ("open", "high", "low", "close")
@@ -101,6 +117,21 @@ def indicators(bars: pd.DataFrame, *, prefix: str = "") -> pd.DataFrame:
     columns["return"] = close.pct_change()
     columns["log_return"] = _log_return(close)
     columns["range_pct"] = (high - low) / close
+
+    # Realised volatility: the standard deviation of log returns over a trailing window,
+    # annualised. This is what replaced VIX (ADR-002 sec. 4) - VIX's hourly history
+    # starts in 2022-10 and keeping it would have cost 55% of the sample for a feature
+    # correlating -0.011 with the target, while this tracks the *level* of the same fear
+    # regime at +0.754 and exists across the whole window.
+    #
+    # `min_periods` equals the window, so a partial window reports nothing rather than a
+    # confident number computed from three bars. Rolling, never expanding: an expanding
+    # window at bar t has seen a different amount of history than at bar t+1, which makes
+    # the column's meaning drift across the sample.
+    log_returns = columns["log_return"]
+    for window in REALISED_VOL_WINDOWS:
+        rolling = log_returns.rolling(window=window, min_periods=window).std()
+        columns[f"realised_vol_{window}"] = rolling * np.sqrt(BARS_PER_YEAR)
 
     for window in SMA_WINDOWS:
         sma = _warm(SMAIndicator(close, window=window, fillna=False).sma_indicator(), window)

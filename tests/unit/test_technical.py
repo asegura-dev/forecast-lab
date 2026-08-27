@@ -16,6 +16,7 @@ from forecast_lab.research import Scale, indicators, probe_scale
 from forecast_lab.research.features import (
     ADX_WINDOW,
     ATR_WINDOW,
+    REALISED_VOL_WINDOWS,
     RSI_WINDOW,
     SMA_WINDOWS,
     FeatureError,
@@ -94,6 +95,58 @@ def test_every_indicator_blanks_its_warmup(column: str, window: int) -> None:
     """No column may report a value computed from less history than it claims."""
     frame = indicators(_bars())
     assert frame[column].iloc[: window - 1].isna().all()
+
+
+# --- realised volatility, the feature that replaced VIX -----------------------------
+
+
+@pytest.mark.unit
+def test_realised_volatility_needs_a_full_window_before_it_reports() -> None:
+    """`min_periods` equals the window, deliberately.
+
+    A partial window would report a confident annualised figure computed from three
+    bars. This is the feature that justified dropping VIX (ADR-002 sec. 4), so it does
+    not get to be sloppier than the thing it replaced.
+    """
+    frame = indicators(_bars(600))
+    for window in REALISED_VOL_WINDOWS:
+        column = frame[f"realised_vol_{window}"]
+        assert column.iloc[:window].isna().all()
+        assert pd.notna(column.iloc[window])
+
+
+@pytest.mark.unit
+def test_realised_volatility_is_rolling_and_never_expanding() -> None:
+    """An expanding window changes what the column means as the sample grows.
+
+    At bar t it would have seen t observations and at bar t+1 it would have seen t+1, so
+    early values are noisier than late ones for a reason that has nothing to do with the
+    market. Asserted by doubling the volatility of the second half and checking the
+    column follows: an expanding window would still be dominated by the calm first half.
+    """
+    rng = np.random.default_rng(17)
+    n = 800
+    index = pd.date_range(ORIGIN, periods=n, freq="h", tz="UTC")
+    steps = rng.normal(0, 1, n)
+    steps[n // 2 :] *= 6.0
+    close = pd.Series(1800 + np.cumsum(steps), index=index)
+    bars = pd.DataFrame(
+        {"open": close, "high": close + 1, "low": close - 1, "close": close}, index=index
+    )
+
+    column = indicators(bars)["realised_vol_24"]
+    calm = float(column.iloc[n // 2 - 50 : n // 2 - 10].mean())
+    wild = float(column.iloc[-40:].mean())
+    assert wild > calm * 3, "the window is not tracking the regime it sits in"
+
+
+@pytest.mark.unit
+def test_realised_volatility_survives_a_change_of_price_unit() -> None:
+    """It is a standard deviation of *log returns*, so the unit cancels."""
+    bars = _bars(600)
+    verdicts = probe_scale(indicators, bars)
+    for window in REALISED_VOL_WINDOWS:
+        assert verdicts[f"realised_vol_{window}"].scale is Scale.FREE
 
 
 # --- scale freedom, checked by measurement ------------------------------------------

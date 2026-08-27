@@ -1,0 +1,410 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "path": "raw/BTCUSD_1H.csv",
+      "sha256": "1cd06dbf42cfb46662d23ca15ac1d410ed7bb320ce885894a74ae884e01e69e6",
+      "size_bytes": 4343280,
+      "rows": 72123,
+      "first": "2018-01-01T22:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/DXY_1H.csv",
+      "sha256": "7cb466b4155e948c4d2667fe1306e5ff6906a960137b021117a7ba8baaf206e9",
+      "size_bytes": 2586314,
+      "rows": 46150,
+      "first": "2018-01-02T00:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/ETHUSD_1H.csv",
+      "sha256": "c984d6b85ce3feea63f0201afec0c988e6d515b9dcca06e6a929b29d42f4077a",
+      "size_bytes": 3856070,
+      "rows": 72075,
+      "first": "2018-01-01T22:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/EURUSD_1H.csv",
+      "sha256": "f5db9fcf14405ebbfbb2dd239fe0890f4c10f084c14e80d5266b76385d7c08ec",
+      "size_bytes": 3276770,
+      "rows": 53932,
+      "first": "2018-01-01T22:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/GBPUSD_1H.csv",
+      "sha256": "f4867ebdcded041c5c252386188c3e8e13826fabeba1b27b88ce13e54cbb0a19",
+      "size_bytes": 3297886,
+      "rows": 53927,
+      "first": "2018-01-01T22:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/NDX_1H.csv",
+      "sha256": "a3c357e368a8ad173b7f8b0eb26854ce3f71fbcef877c1dde9cdba84d475c211",
+      "size_bytes": 3278115,
+      "rows": 50376,
+      "first": "2018-01-02T07:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/SPX_1H.csv",
+      "sha256": "a77555f51f2e8836454112f018d744ea07515bd4f9f0c8cca8b69add7bca3bcf",
+      "size_bytes": 3164356,
+      "rows": 50382,
+      "first": "2018-01-02T07:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/USDJPY_1H.csv",
+      "sha256": "8ab383d2a5bcbb3db6740662d54ea505e2f4d322524ae5985a0454a406f983cc",
+      "size_bytes": 3264214,
+      "rows": 53929,
+      "first": "2018-01-01T22:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/WTIUSD_1H.csv",
+      "sha256": "6f7e39e7164ef193e119eaef0872a67b9f4fcde484505d23e5a564156d0ff13c",
+      "size_bytes": 2795048,
+      "rows": 51071,
+      "first": "2018-01-01T23:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/XAGUSD_1H.csv",
+      "sha256": "8277be3c0d8f57e75e152cebb492582351a04f89a850756832b21c6dba5c5a3c",
+      "size_bytes": 2824459,
+      "rows": 51138,
+      "first": "2018-01-01T23:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "raw/XAUUSD_1H.csv",
+      "sha256": "cb425b86de3ad37fde793cd200eaa3a765fc3c21403dbfe0063e668e17f7cca3",
+      "size_bytes": 3194221,
+      "rows": 51147,
+      "first": "2018-01-01T23:00:00+00:00",
+      "last": "2026-08-26T14:00:00+00:00",
+      "source": "dukascopy"
+    },
+    {
+      "path": "reference/BTCUSD_1D.csv",
+      "sha256": "e0710c402a733ac838759230f7cd9527a13f9454d915ce7780d60c2d278259ce",
+      "size_bytes": 136163,
+      "rows": 3134,
+      "first": "2017-04-30T21:00:00+00:00",
+      "last": "2025-12-01T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/BTCUSD_1H.csv",
+      "sha256": "b21c51030d5a4ae45b948f90df100d72a3587329689fabae35f02bb338ab280e",
+      "size_bytes": 1143620,
+      "rows": 25189,
+      "first": "2022-12-31T22:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/BTCUSD_4H.csv",
+      "sha256": "f0205274fb82e1f236a16f36ed36f25ec245fbae3b76a635317a8e301dbde5d4",
+      "size_bytes": 814471,
+      "rows": 18762,
+      "first": "2017-04-30T21:00:00+00:00",
+      "last": "2025-12-02T14:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/DXY_1D.csv",
+      "sha256": "fd8ab2953ba6cef7fb9521f34b652db0edaa92de3e89063c5686b7206565cf93",
+      "size_bytes": 179886,
+      "rows": 4758,
+      "first": "2007-03-16T00:00:00+00:00",
+      "last": "2025-12-02T01:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/DXY_1H.csv",
+      "sha256": "a7bbdc62e5e75be4514e492dd6bfe7f44f36d626fe8568069cbcbcd5ef8fd7d1",
+      "size_bytes": 934678,
+      "rows": 21580,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-01T21:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/DXY_4H.csv",
+      "sha256": "33e9dd7eff5fdc522299bcd8bd2653061330d1f1b75ad88cfd52317a131aa2b2",
+      "size_bytes": 534788,
+      "rows": 12854,
+      "first": "2007-03-16T00:00:00+00:00",
+      "last": "2025-12-02T13:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/ETHUSD_1H.csv",
+      "sha256": "a77a5c31d06bbaea8813f12fc04dbfe551a2ab388efebe2909b81cc3fcd356c6",
+      "size_bytes": 1070550,
+      "rows": 25177,
+      "first": "2022-12-31T22:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/EURUSD_1D.csv",
+      "sha256": "d5f4a57da686536c142d1db4975a53b62f532641bc0fe052166f07748e28639c",
+      "size_bytes": 109559,
+      "rows": 2577,
+      "first": "2016-01-03T22:00:00+00:00",
+      "last": "2025-12-01T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/EURUSD_1H.csv",
+      "sha256": "91f66407bb9608c5abebb91e7202263255ba144312b1b49ee7076464cc0111e5",
+      "size_bytes": 1037980,
+      "rows": 24401,
+      "first": "2022-01-02T22:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/EURUSD_4H.csv",
+      "sha256": "ff10c08069a85ad4885ea8e751e4794cc95ce8c9afc50db7d3a301a188efeb2f",
+      "size_bytes": 567938,
+      "rows": 13370,
+      "first": "2017-04-30T21:00:00+00:00",
+      "last": "2025-12-02T14:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/GBPUSD_1D.csv",
+      "sha256": "0c2a721d31631f1f5e42b7fef01dc798870cf86cc28340e660e70f1d80f55d1b",
+      "size_bytes": 108940,
+      "rows": 2565,
+      "first": "2016-01-03T22:00:00+00:00",
+      "last": "2025-12-01T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/GBPUSD_1H.csv",
+      "sha256": "85055b76d31c9940bd82e9cacd312ba9bad7d83531e4cb81754291ee58495bc6",
+      "size_bytes": 1038296,
+      "rows": 24402,
+      "first": "2022-01-02T22:00:00+00:00",
+      "last": "2025-12-02T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/GBPUSD_4H.csv",
+      "sha256": "9222d8ff1f849882ce7635ec2b8246df9fe333192fbc809438e5f81dad44b914",
+      "size_bytes": 564385,
+      "rows": 13289,
+      "first": "2017-04-30T21:00:00+00:00",
+      "last": "2025-12-02T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/NDX_1D.csv",
+      "sha256": "584bdbaa8ce5978fdb065869ded807edffca88656baf24bd0634632fc55cc154",
+      "size_bytes": 90260,
+      "rows": 2217,
+      "first": "2017-04-30T22:00:00+00:00",
+      "last": "2025-12-01T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/NDX_1H.csv",
+      "sha256": "c20e8703f6ae7e30f775aa37f26884d08839967295407ab1db4e9f3136f76383",
+      "size_bytes": 984666,
+      "rows": 23352,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/NDX_4H.csv",
+      "sha256": "38376c9d645da37d27956f147ae163cd60f181e3ccffec3ff2bcadc2d2a5473c",
+      "size_bytes": 533254,
+      "rows": 13087,
+      "first": "2017-04-30T22:00:00+00:00",
+      "last": "2025-12-02T14:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/SPX_1D.csv",
+      "sha256": "b552d666f6d64c6b042ba40d13fd8caeea7e28dd21d9d13158b63c7f72bf7a68",
+      "size_bytes": 257645,
+      "rows": 6806,
+      "first": "1999-02-17T22:00:00+00:00",
+      "last": "2025-12-01T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/SPX_1H.csv",
+      "sha256": "e8a4dd953a95094403177edb024cbcd40efd115bbc54875e06d8c82a5aaf745f",
+      "size_bytes": 892455,
+      "rows": 23321,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/SPX_4H.csv",
+      "sha256": "0d5f7cac24ad10045b8cf5b7cba25f9adc2c8b06e0f7db518ba71d5f07975490",
+      "size_bytes": 500280,
+      "rows": 13076,
+      "first": "2017-04-30T22:00:00+00:00",
+      "last": "2025-12-02T14:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/USDJPY_1D.csv",
+      "sha256": "453ebc15f5015153602e940eb3ec8945dfffe70906c6caa9b2f37065bc7af668",
+      "size_bytes": 108994,
+      "rows": 2565,
+      "first": "2016-01-03T22:00:00+00:00",
+      "last": "2025-12-01T22:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/USDJPY_1H.csv",
+      "sha256": "81f37baaac25d1fa3ee3825b0461b6bf6057e6b986abd72655f31bb445706a15",
+      "size_bytes": 1037263,
+      "rows": 24376,
+      "first": "2022-01-02T22:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/USDJPY_4H.csv",
+      "sha256": "79b2be9190839c3f6485eef6e6f9d3485ed14d3d3b64abd1e852debf016921fc",
+      "size_bytes": 564343,
+      "rows": 13284,
+      "first": "2017-04-30T21:00:00+00:00",
+      "last": "2025-12-02T14:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/VIX_1D.csv",
+      "sha256": "a24dc8ffbc43f38db859e385ca10c6aafb5791bd9b04899af9d4b72753b77816",
+      "size_bytes": 122019,
+      "rows": 3535,
+      "first": "2012-01-11T23:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/VIX_1H.csv",
+      "sha256": "a87e13938f0b6846ce411d96c8a9023538d489ab1e01d859b3facc2ff0168d07",
+      "size_bytes": 737502,
+      "rows": 21342,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/VIX_4H.csv",
+      "sha256": "ab8c8f977736f5d88a2245115fd0ff3e1e8b6f5a5a4ce43dac8c2e78cc87e117",
+      "size_bytes": 393971,
+      "rows": 11407,
+      "first": "2012-01-11T23:00:00+00:00",
+      "last": "2025-12-02T15:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/WTIUSD_1D.csv",
+      "sha256": "bdd71b59152e47fb7cab706c7dc7ed423a7923e77ae3629813a0c350d3edcbf9",
+      "size_bytes": 74316,
+      "rows": 2076,
+      "first": "2017-04-30T22:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/WTIUSD_1H.csv",
+      "sha256": "1026f30fbde5d4bfe3050eb021d61fadb5ab17e4bba28b360e9c1241cfdbdd68",
+      "size_bytes": 860851,
+      "rows": 23161,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/WTIUSD_4H.csv",
+      "sha256": "9df1f06161e8eb39b3735621327725f460f600563725de046f44e5dfa9bb9da6",
+      "size_bytes": 427766,
+      "rows": 11926,
+      "first": "2017-05-01T14:00:00+00:00",
+      "last": "2025-12-02T15:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/XAGUSD_1D.csv",
+      "sha256": "09e91605e7c53e790421412da6a438b0723b6bc845237e9a4a8fba522fa53b1c",
+      "size_bytes": 76316,
+      "rows": 1979,
+      "first": "2017-05-29T22:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/XAGUSD_1H.csv",
+      "sha256": "5d71b869529b6aa66ec895ac720e7e411f78ac5fbea4003463cc24f64eafdc3f",
+      "size_bytes": 894059,
+      "rows": 23178,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-02T00:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/XAGUSD_4H.csv",
+      "sha256": "90d6be75f5b4da2acf5a7e0d6037873758597e9526166d9e9a614001db7b6714",
+      "size_bytes": 441067,
+      "rows": 11438,
+      "first": "2017-05-30T06:00:00+00:00",
+      "last": "2025-12-02T15:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/XAUUSD_1D.csv",
+      "sha256": "312a47cd36a037d6ab307d50741a6ae1b50c2b1ccfe63e175614ad0331795f3b",
+      "size_bytes": 94355,
+      "rows": 2220,
+      "first": "2017-04-30T22:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/XAUUSD_1H.csv",
+      "sha256": "7bbb390decdb9d6791f0da76aa0bab36fb29c1274722d2feed47af2ef1b8ca40",
+      "size_bytes": 985613,
+      "rows": 23181,
+      "first": "2022-01-02T23:00:00+00:00",
+      "last": "2025-12-01T23:00:00+00:00",
+      "source": "reference"
+    },
+    {
+      "path": "reference/XAUUSD_4H.csv",
+      "sha256": "12e048503956e870f89b03da41a38046d730092471eec9676003e5356242ca30",
+      "size_bytes": 556444,
+      "rows": 13089,
+      "first": "2017-04-30T22:00:00+00:00",
+      "last": "2025-12-02T15:00:00+00:00",
+      "source": "reference"
+    }
+  ]
+}

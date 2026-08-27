@@ -26,11 +26,11 @@ interfaces --+--> ingest ----+
 
 1. **`contracts` imports nothing of ours.** It is the vocabulary of the domain.
 2. **`research` never reaches for data.** No `open`, no `read_csv`, no `Path.glob`, no HTTP client. It receives DataFrames and does not know where they came from. A research layer that can quietly re-read the world produces experiments that cannot be reproduced from stored inputs - and a result that cannot be reproduced cannot be falsified.
-3. **The CLI is the only composition root.** The only place that imports concrete implementations, and the only place that touches the filesystem or the network.
+3. **The CLI is the only composition root.** The only place that imports concrete implementations, and the only place that *decides* what to read and where to write. `ingest` performs the reading and writing - that is its job - but it is always handed a path rather than choosing one.
 4. **No `.py` at the package root** except `__init__.py`. A module there sits outside the layering guard, which is precisely where a dependency leak hides.
-5. **Every command that produces a result offers `--json`**, built by a dedicated payload function rather than scattered through print statements. The dashboard runs these commands instead of reimplementing them ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md)), and scraping a Rich table would break on the first column that got wider - silently, because a truncated number is still a number.
+5. **Every analysis command offers `--json`** - `features`, `train` and `baseline` today - built by a dedicated payload function rather than scattered through print statements. `align` does not yet and should: it produces a substantive result the dashboard will need. The dashboard runs these commands instead of reimplementing them ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md)), and scraping a Rich table would break on the first column that got wider - silently, because a truncated number is still a number.
 
-The first three are enforced by [`tests/test_layering.py`](../../tests/test_layering.py). A reviewer forgets on a Friday; a gate does not.
+Rules 1, 2 and 4 are enforced by [`tests/test_layering.py`](../../tests/test_layering.py), along with the quarantines that keep untyped dependencies in one module each. Rule 3 is a convention: the guard checks that `research` performs no I/O, not that `interfaces` is the only caller deciding paths. A reviewer forgets on a Friday; a gate does not - so the distinction between what is guarded and what is merely agreed is worth stating.
 
 **Ports are not created in advance** (see [ADR-001 sec. 2](../adr/ADR-001-hexagonal-architecture.md)). An abstract interface earns its place when a second implementation exists. One written in anticipation is over-engineering in good handwriting.
 
@@ -40,7 +40,7 @@ The first three are enforced by [`tests/test_layering.py`](../../tests/test_laye
 - **Indicators are computed on each symbol's native grid**, and only then reindexed onto the target. The other order fabricates zero returns on stale rows, and because staleness correlates with the hour of day, a tree model learns a session clock disguised as a macro signal.
 - **No raw price levels in the feature matrix.** And "scale-free" is not "stationary": the distribution shift between splits has to be measured, not assumed.
 - **Selection happens on validation.** The test set is evaluated once and the report records that it was spent.
-- **No result is published without its baselines** - the majority class of *train* applied blind, persistence, and the economic ones (buy & hold, always-long, always-flat). An accuracy of 51.9% with no baseline beside it is misleading; that is exactly how the original project's headline number came to be believed.
+- **No result is published without its baselines** - today the majority class of *train* applied blind, persistence, and a seeded random draw. The economic ones (buy & hold, always-long, always-flat) arrive with the cost model and are not built yet. An accuracy of 51.9% with no baseline beside it is misleading; that is exactly how the original project's headline number came to be believed.
 
 ## Document as you build, in the same step
 

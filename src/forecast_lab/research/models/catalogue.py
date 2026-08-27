@@ -82,8 +82,8 @@ def _random_forest() -> Any:
     # Measured: with -1 the probabilities differ by up to 3.3e-16 between runs and the
     # command's JSON output is not byte-reproducible; with 1 it is exact. The cost is
     # 0.29s against 3.04s per fit, taking the whole command from about six seconds to
-    # fourteen. A repository whose thesis is that a published number must recompute
-    # identically does not get to trade that away for eight seconds.
+    # twelve. A repository whose thesis is that a published number must recompute
+    # identically does not get to trade that away for six seconds.
     return RandomForestClassifier(
         n_estimators=100, max_depth=10, random_state=RANDOM_STATE, n_jobs=1
     )

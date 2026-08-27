@@ -15,13 +15,15 @@ Auxiliary symbols are read onto that timeline by carrying their last known value
 
 Measured on the real exports, with gold as the target and the nine auxiliaries the original project used:
 
-| Strategy | Rows | Exact ties | UP | DOWN |
+| Strategy | Labels | Exact ties | UP | DOWN |
 |---|---:|---:|---:|---:|
 | outer join + forward fill | 24,430 | 1,288 | 48.53% | **51.47%** |
 | inner join (the other notebook) | 19,932 | 31 | **51.15%** | 48.85% |
 | **target-anchored** | **23,180** | 38 | **51.15%** | 48.85% |
 
 Three readings, in order of how much they matter. The forward fill **never creates an UP** - 11,857 either way - so every fabricated row lands on the same side. It therefore **flips which class is the majority**: the corrupted data says gold falls more often than it rises, and that was the baseline every model was compared against. And the inner join, the other notebook's approach, gets the balance right by **discarding 3,248 real gold bars** - 14% of the good data - to buy it.
+
+The column counts **labels**, not bars, and the difference matters: the target has 23,181 hourly bars, and the last one has no successor to be labelled against, so 23,180 labels come out of it. The outer join's 24,430 is a label count too.
 
 The identity behind the damage is exact and is fixed by a regression test: **each fabricated row adds exactly one tie**. On the real data that reads 24,430 - 23,180 = 1,250 and 1,288 - 38 = 1,250.
 
@@ -74,6 +76,6 @@ A daily bar carried onto an hourly row **has not closed yet** when that hour's d
 
 ## Implementation status
 
-**Built:** `research/align.py`, the `align` command, 16 unit tests and 3 regression tests. Verified against the real reference panel, where it reproduces every figure measured during the audit: 23,181 rows, VIX carried on 8.0% of them, DXY on 7.1%, crypto absent from 25.5%.
+**Built:** `research/align.py`, the `align` command, 17 unit tests and 3 regression tests. Verified against the real reference panel, where it reproduces every figure measured during the audit: 23,181 rows, VIX carried on 8.0% of them, DXY on 7.1%, crypto absent from 25.5%.
 
 **Not built:** shifting a coarser auxiliary so it can contribute safely (sec. 4). Deferred until something needs it.

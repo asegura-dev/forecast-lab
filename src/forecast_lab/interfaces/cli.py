@@ -1,9 +1,11 @@
 """The command line, and the composition root.
 
-The ONLY module allowed to import concrete implementations and the ONLY one that
-touches the filesystem or the network (ADR-001 sec. 1). Everything else receives what
-it needs as an argument, which is what makes every research function callable from a
-test with synthetic data and no disk.
+The only module allowed to import concrete implementations, and the only one that
+**decides** what to read and where to write. `ingest` performs the I/O - it is the layer
+that knows bytes exist - but it never chooses a path on its own; this module hands it
+one. The load-bearing rule, and the one a test enforces, is that **`research` never
+reaches for data** (ADR-001 sec. 1): it receives frames, which is what makes every
+research function callable from a test with synthetic input and no disk.
 
 Invoke as ``forecast-lab <command>`` (in development, ``uv run forecast-lab <command>``).
 
@@ -14,6 +16,7 @@ in the logging is indistinguishable from a crash in the work.
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
@@ -668,10 +671,18 @@ def train_command(
                 f"{on_test.recall:.2%}.[/yellow] That is a constant, not a model - the "
                 "exact signature the original analysis reported as a result."
             )
+        # The minimum detectable effect, computed from the block actually scored rather
+        # than quoted from a planning document. One standard error is 0.5/sqrt(n); the
+        # MDE at 80% power and a one-sided 5% test is 2.49 of them. Printing the SE
+        # instead - which an earlier version of this line did - understates the design's
+        # blind spot by a factor of two and a half.
+        standard_error = 0.5 / math.sqrt(on_test.n)
+        mde = 2.49 * standard_error
         console.print(
-            "[dim]A single 70/15/15 split resolves about 0.85 points at 80% power, so a "
-            f"gap of {abs(on_test.edge):.2%} is inside the noise either way. That is a "
-            "fact about the design, not about the model.[/dim]"
+            f"[dim]Over {on_test.n:,} scored bars one standard error is "
+            f"{standard_error:.2%}, so this design resolves {mde:.2%} at 80% power. A gap "
+            f"of {abs(on_test.edge):.2%} is inside the noise either way - a fact about "
+            "the design, not about the model.[/dim]"
         )
 
     if figures is not None:

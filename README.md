@@ -24,13 +24,30 @@ With 1,547 of 2,983 test bars going up, **always predicting UP scores 51.86%**. 
 
 That is not a story about one careless project. It is what happens when a pipeline has no baseline, no power analysis, and no separation between choosing a model and testing it. This repository rebuilds the experiment so those three things are impossible to skip.
 
-**And the corrected pipeline now reaches the same verdict independently.** Rebuilt end to end - labels on an explicit horizon, a purged split, features that carry no price level, every transform fitted on train alone, selection on validation - it selects **LightGBM**, the same model the original selected, and on test it scores 50.67% against a 51.31% baseline: **-0.64%**. The original reported -0.33%. Two pipelines, different data handling, the same choice and the same sign ([STATUS 2026-08-24](docs/status/STATUS-2026-08-models.md)).
+## What the corrected pipeline finds
+
+Rebuilt end to end - labels on an explicit horizon, a purged split, features that carry no price level, every transform fitted on train alone, selection on validation - and run on two independent datasets:
+
+| | reference (23,181 bars) | canonical (51,147 bars) |
+|---|---|---|
+| Model selected on validation | XGBoost | Random Forest |
+| Its edge over always-UP, on test | **-0.21%** | **+0.15%** |
+| Minimum detectable effect (80% power) | 2.17% | **1.46%** |
+| Configurations clearing break-even | 1 of 18 | **0 of 18** |
+| Range of AUC across 18 configurations | 0.491 - 0.527 | **0.503 - 0.516** |
+
+**The sign flips between datasets and both results sit far inside the noise.** That is the finding: at this effect size the sign carries no information - and the original analysis reported a difference of the same order and read it as a discovery.
+
+What is established firmly: **nothing tested reaches the accuracy at which trading would pay for its own costs**, on either dataset. What is *not* established is "there is no edge" - an MDE of 1.46 points would still miss a real edge of 0.8, and saying otherwise would repeat the original's mistake in the opposite direction.
 
 ![Every model against the rules it has to beat](docs/status/figures/edge-test.png)
 
-Thirteen of eighteen configurations fall below the constant predictor; exactly one clears break-even, and it is the best of eighteen coin flips. The measured cost of the shortcut is the sharpest number this project has produced. Selecting on validation gives -0.64% on test; selecting by *looking at* test - which is what `results_df['Test_AUC'].idxmax()` does - gives **+2.00%**. Same data, same eighteen configurations, **2.64 points that hang entirely on when the test set is consulted**.
+**And the sharpest number the project has produced is about procedure, not about gold.** Selecting on validation gives -0.21% on test; selecting by *looking at* test - which is what the original notebook does - gives **+1.85%**. Same data, same eighteen configurations: **2.06 points that hang entirely on when the test set is consulted**, which is larger than any effect anyone here is trying to detect.
 
-**And it computes its own version of the number rather than only quoting that one.** `forecast-lab baseline` runs the corrected pipeline end to end and reports what a model would have to beat: on the test block, always-UP scores **51.46%** with 100% recall and **0.00% specificity** - the signature of a constant wearing a model's clothes - while a seeded coin flip scores **51.70%**, above it. Break-even against the friendliest cost assumption is 51.92%; nothing available without a model reaches it. The full run is in [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md), which also says which figures this repository computes and which it merely quotes.
+Two more things fell out of building it:
+
+- **Adding two feature columns changed which model wins**, from LightGBM to XGBoost, without changing any conclusion. If that is enough to move the winner among six models, then "LightGBM won" was never a fact about LightGBM ([STATUS](docs/status/STATUS-2026-08-models.md) sec. 5).
+- **Gold rises through the venue's pauses far more often than through an ordinary hour** - 59.35% against 50.87% on one dataset, 56.40% against 50.76% on the other. Replicated across two providers. It is not a strategy yet: those are precisely the hours that pay overnight financing.
 
 ## What this is, and is not
 
@@ -42,15 +59,16 @@ Thirteen of eighteen configurations fall below the constant predictor; exactly o
 
 Before modelling, two numbers are computed and pre-registered:
 
-- **Break-even accuracy** - where a directional edge starts paying for its own costs. With a measured spread of ~1.6 bps and a mean hourly move of 13.0 bps, that is **51.92%** at best.
+- **Break-even accuracy** - where a directional edge starts paying for its own costs. Against a one basis point round trip and a mean absolute hourly move of 13.04 bps, that is **51.92%**. It is the optimistic bound, carried from the planning analysis: the venue's *measured* spread is about 1.6 bps, which would put break-even near 53%, and the cost model that computes it properly is not built yet.
 - **Minimum detectable effect** - the smallest edge the design can tell apart from luck.
 
 | Validation design | Out-of-sample bars | MDE |
 |---|---:|---:|
-| Single 70/15/15 split | 3,478 | **52.11%** |
-| Walk-forward | 11,590 | 51.16% |
+| Single split, reference data | 3,478 | **52.11%** |
+| Single split, canonical data | 7,334 | **51.46%** |
+| Walk-forward, canonical data | ~22,000 | 50.84% |
 
-The single split used by the original analysis **cannot resolve a barely-profitable edge**: its detection floor sits above the profitability threshold. No amount of model tuning fixes that; only a different validation design does. This is the kind of thing that is obvious once measured and invisible otherwise.
+The single split used by the original analysis **cannot resolve a barely-profitable edge**: its detection floor of 2.11 points sits above the 1.92 points that would make a strategy pay. No amount of model tuning fixes that - only more data or a different validation design does, and the table says how much of each. This is the kind of thing that is obvious once measured and invisible otherwise.
 
 ## Architecture
 
@@ -93,13 +111,18 @@ difference between "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hour
 Then label the target, cut the timeline, and score the rules a model has to beat:
 
 ```bash
-uv run forecast-lab baseline --target XAUUSD --timeframe 1H
-uv run forecast-lab features --target XAUUSD --timeframe 1H --mode whole
-uv run forecast-lab train    --target XAUUSD --timeframe 1H --figures docs/status/figures
+uv run forecast-lab baseline --target XAUUSD --timeframe 1H --dir data/raw
+uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/raw --mode whole
+uv run forecast-lab train    --target XAUUSD --timeframe 1H --dir data/raw --figures docs/status/figures
 ```
 
-Every command that produces a result offers `--json`, because the dashboard is going to
-run these commands rather than reimplement them ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)).
+`--dir data/raw` is not optional after a `fetch`: these three read `data/reference` by
+default, because the published figures were computed there. The two directories hold
+different datasets and the commands will not silently mix them.
+
+The analysis commands - `features`, `train` and `baseline` - offer `--json`, because the
+dashboard is going to run them rather than reimplement them
+([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)). `align` does not yet.
 
 To reproduce the baseline this project corrects, point `ingest` at the original
 project's exports; they are read once and never feed the engine:
@@ -122,6 +145,7 @@ Written as a research book: each document exists because a decision was made, an
 
 | | |
 |---|---|
+| [Documentation index](docs/INDEX.md) | One line per file - find the right document without opening it |
 | [RUNBOOK](docs/guides/RUNBOOK-getting-started.md) | **Start here to run it**: fresh clone to feature matrix, and what to do when a step fails |
 | [Engineering conventions](docs/guides/engineering-conventions.md) | The rules, and why each exists |
 | [ADR-001](docs/adr/ADR-001-hexagonal-architecture.md) | The architecture, and the abstractions deliberately not built |
@@ -140,7 +164,7 @@ Written as a research book: each document exists because a decision was made, an
 
 ## Status
 
-The pipeline runs end to end: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, and fitted. What is missing is not the modelling but the **evaluation**: transaction costs, walk-forward validation, and the significance battery that turns "-0.64%" into a verdict rather than a number. The order was deliberate - the original went wrong before any model was fitted, so the corrections came first.
+The pipeline runs end to end: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, and fitted. What is missing is not the modelling but the **evaluation**: transaction costs, walk-forward validation, and the significance battery that turns "-0.21%" into a verdict rather than a number. The order was deliberate - the original went wrong before any model was fitted, so the corrections came first.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
@@ -149,9 +173,11 @@ The pipeline runs end to end: data in, verified, onto one timeline without a fab
 - [x] Target-anchored alignment (the correction at the heart of the re-analysis)
 - [x] Labels on an explicit horizon, a purged chronological split, and the three baselines
 - [x] Features with an enforced stationarity policy, checked by rescaling rather than by name
-- [ ] Walk-forward validation, the cost model, and the power analysis
 - [x] Models: six estimators, PCA, selection on validation, scored against the baselines
-- [ ] The evaluation battery, the cost model, and the verdict
+- [x] Figures: the comparison the original could not draw, committed as PNG
+- [ ] The cost model and the power analysis, computed rather than carried
+- [ ] Walk-forward validation, to replace a split that cannot resolve the effect
+- [ ] The evaluation battery and the verdict
 - [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 
 ## Origin and scope of the re-analysis

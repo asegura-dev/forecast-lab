@@ -2,7 +2,8 @@
 # The raw series is not a repo artefact: Dukascopy is a public CDN, so anyone can
 # rebuild it. Two things ARE versioned and live elsewhere on purpose:
 # docs/status/data-manifest.json, which ties a published result to a hash
-# (ADR-002 sec. 7), and tests/fixtures/, the synthetic data the gates run on.
+# (ADR-002 sec. 7). The gates need no fixture: the tests construct synthetic bars in
+# code, which is faster and cannot drift from what they assert.
 data/
 
 # --- Environment and secrets ---
