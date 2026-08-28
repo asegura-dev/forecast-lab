@@ -2,6 +2,49 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-27 - Power, walk-forward, and the trap in a positive result
+
+The calculation that decides whether four separate "no model beats its baseline" statements meant anything. Without it, a negative result is indistinguishable from an experiment too small to see.
+
+### Added
+
+- **[ADR-011](docs/adr/ADR-011-power-before-verdict.md), `research/power.py` and `research/walkforward.py`** - the minimum detectable effect of a validation design, and expanding walk-forward folds purged at every boundary.
+- **`research/models/validation.py` and `forecast-lab validate`** - every model scored across the folds, pooled by row count, with the constant predictor refitted inside each one. `--json` like every other analysis command.
+- **[STATUS 2026-08-27](docs/status/STATUS-2026-08-walk-forward.md)** with its sidecar - six models over 40,587 bars spanning 2019-06 to 2026-08.
+
+### Changed
+
+- **The negative result becomes a finding.** Against [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md)'s measured 3.49-point break-even, a single split resolves the effect at 99-100% power and walk-forward at an MDE of **0.62%** over 40,587 bars. Detecting a profitable edge needs **1,268 bars**; there are 40,587. The verdict turns from *"we could not see"* into **"we looked with power to spare and there was nothing"**.
+- **This reverses an argument this project made for a week.** "A single split cannot resolve the effect it exists to test" was true against the *assumed* 1 bp round trip - a 1.92-point effect against a 2.17-point MDE. It is false against the measured cost. The claim was published; the correction is published in the same place.
+- **The best model over the whole history scores 51.23% against a 53.49% break-even**, short by **2.26 points**. No model of six comes close.
+
+### Noted
+
+- **All six edges turn positive under walk-forward, and it is an artefact.** Accuracy *falls* 0.21 points against the single split; the baseline falls **0.67**. One rising stretch gives always-UP 50.93%; five stretches averaged put the majority class nearer a half. **The edge moved because the thing it is measured against moved** - this repository's own thesis, arriving from a new direction. `validate` prints both terms on every row for exactly this reason.
+- **A nominally significant edge is reported before it is discounted.** +0.97% is 3.91 sigma and survives Holm across six models. It is still a quarter of what costs demand, mostly explained by the paragraph above, and computed from a standard error that assumes independent bars. **100% power must not be read literally** until a stationary bootstrap corrects for overlapping feature windows.
+
+### Fixed
+
+- **`rich` was silently eating the model representation.** `[raw]` and `[pca-95]` are valid console markup, so `train` has been printing `Selected on validation AUC: Random Forest` since the models commit, dropping the half of the identifier that says which representation won. Found because the same bug surfaced in `validate`'s new output; fixed with `rich.markup.escape` at all three call sites.
+
+## 2026-08-27 - The cost of trading, measured at last
+
+### Added
+
+- **[ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) and `research/costs.py`** - the break-even accuracy is now computed from the venue's own quoted spread. [ADR-002](docs/adr/ADR-002-data-source-and-symbol-set.md) sec. 2 justified downloading both offer sides precisely so this number could be measured, and `fetch` has written a `spread` column into every bar since the first day. It was never read.
+- **`train` computes its own threshold** and prints where it came from. On a series with no spread - the reference exports, whose venue never published one - it falls back to the 1 bp assumption and says so, because silently switching between a measured and an assumed threshold makes two runs incomparable.
+
+### Changed
+
+- **The break-even is 53.49%, not 51.92%.** Measured over 51,147 hourly bars: a median round trip of **1.86 bps** against a mean absolute move of 13.35 bps. The assumed figure came from 1 bp; the probe's short window suggested 1.6; the mean is 2.13 and the 95th percentile 3.60, which would demand 56.74%. **The median cost is 14% of the average move a correct prediction earns**, which is the frequency problem stated in one number.
+- **The verdict firms up rather than shifting.** The best accuracy any of 36 configurations reached, across both datasets, was 53.31% - already established as the best of eighteen draws from noise. Against the measured cost nothing comes within two points of paying for itself, and the honestly-selected model falls short by **2.41 points** where the assumed figure made it look like a 0.83 near miss.
+- **A number quoted sixteen times across eleven files changes meaning.** 51.92% is not wrong - it is the correct break-even under a 1 bp assumption, and it still applies to the reference dataset. It stops being *the* threshold and becomes the optimistic end of a range.
+
+### Noted
+
+- **The gap finding gets harder, not easier.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face - but those are exactly the hours that pay overnight financing, and the swap on long gold is negative and triples on Wednesdays. Not modelled yet, so that finding stays a measurement rather than a strategy.
+- **An escape route this does not close**, named rather than hidden: the arithmetic scales with the flip rate. A strategy holding twenty bars instead of one pays a fifth as much and faces a far lower bar. Nothing here rules out a lower-frequency edge; only the hourly one that was tested.
+
 ## 2026-08-27 - The exploratory analysis, and three tests that answered nothing
 
 The half of the original project named in its own course title - *Data Analysis and Exploration* - had no counterpart here until now. Rebuilding it found that its EDA is not careless: it runs standard procedures, correctly implemented, and reports them clearly. Each one is simply pointed at a question that already had its answer.

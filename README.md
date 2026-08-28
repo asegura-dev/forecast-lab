@@ -32,13 +32,17 @@ Rebuilt end to end - labels on an explicit horizon, a purged split, features tha
 |---|---|---|
 | Model selected on validation | XGBoost | Random Forest |
 | Its edge over always-UP, on test | **-0.21%** | **+0.15%** |
-| Minimum detectable effect (80% power) | 2.17% | **1.46%** |
+| Minimum detectable effect (80% power) | 2.17% | **1.45%** |
 | Configurations clearing break-even | 1 of 18 | **0 of 18** |
 | Range of AUC across 18 configurations | 0.491 - 0.527 | **0.503 - 0.516** |
 
 **The sign flips between datasets and both results sit far inside the noise.** That is the finding: at this effect size the sign carries no information - and the original analysis reported a difference of the same order and read it as a discovery.
 
-What is established firmly: **nothing tested reaches the accuracy at which trading would pay for its own costs**, on either dataset. What is *not* established is "there is no edge" - an MDE of 1.46 points would still miss a real edge of 0.8, and saying otherwise would repeat the original's mistake in the opposite direction.
+What is established firmly: **nothing tested reaches the accuracy at which trading would pay for its own costs** - and against the *measured* cost of 53.49% rather than the assumed 51.92%, the selected model falls short by 2.41 points rather than 0.83. What is *not* established is "there is no edge" - even the walk-forward design below, which resolves 0.62 points, would miss a real edge of 0.4, and saying otherwise would repeat the original's mistake in the opposite direction.
+
+**Scored across the whole history rather than one block**, five expanding folds covering 2019-06 to 2026-08 put the best of six models at **51.23% over 40,587 bars**, against the 53.49% that would pay for costs - short by **2.26 points**, with no model closer ([STATUS](docs/status/STATUS-2026-08-walk-forward.md)).
+
+And that run contains a trap worth stating, because it is this project's own thesis pointed back at itself: under walk-forward **all six edges turn positive**, which looks like the models improving. They are not. Accuracy *falls* 0.21 points; the **baseline falls 0.67**, because averaging five stretches of history moves the majority class nearer a half. The edge moved because the thing it is measured against moved.
 
 ![Every model against the rules it has to beat](docs/status/figures/edge-test.png)
 
@@ -60,16 +64,18 @@ Two more things fell out of building it:
 
 Before modelling, two numbers are computed and pre-registered:
 
-- **Break-even accuracy** - where a directional edge starts paying for its own costs. Against a one basis point round trip and a mean absolute hourly move of 13.04 bps, that is **51.92%**. It is the optimistic bound, carried from the planning analysis: the venue's *measured* spread is about 1.6 bps, which would put break-even near 53%, and the cost model that computes it properly is not built yet.
+- **Break-even accuracy** - where a directional edge starts paying for its own costs. Computed from the venue's own quoted spread over 51,147 bars: a median round trip of **1.86 bps** against a mean absolute move of 13.35 bps gives **53.49%**. The 51.92% this project quoted for a week came from *assuming* 1 bp, and the difference is not cosmetic - it is the gap between the best result looking like a near miss and being two points short ([ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md)).
 - **Minimum detectable effect** - the smallest edge the design can tell apart from luck.
 
-| Validation design | Out-of-sample bars | MDE |
-|---|---:|---:|
-| Single split, reference data | 3,478 | **52.11%** |
-| Single split, canonical data | 7,334 | **51.46%** |
-| Walk-forward, canonical data | ~22,000 | 50.84% |
+| Validation design | Out-of-sample bars | MDE at 80% power | Power for a profitable edge |
+|---|---:|---:|---:|
+| Single split, reference data | 3,294 | 2.17% | 99.1% |
+| Single split, canonical data | 7,306 | 1.45% | 100.0% |
+| **Walk-forward, canonical data** | **40,587** | **0.62%** | **100.0%** |
 
-The single split used by the original analysis **cannot resolve a barely-profitable edge**: its detection floor of 2.11 points sits above the 1.92 points that would make a strategy pay. No amount of model tuning fixes that - only more data or a different validation design does, and the table says how much of each. This is the kind of thing that is obvious once measured and invisible otherwise.
+**This table reversed an argument this project made for a week.** The claim was that a single split "cannot resolve the effect it exists to test" - a 2.17-point detection floor sitting above the 1.92 points a strategy would need. That was true against an *assumed* 1 bp round trip. Measured at the venue, costs demand **3.49 points**, and every design here sees that comfortably: detecting a profitable edge needs **1,268 bars** and there are 40,587. The verdict is therefore not *"we could not see"* but **"we looked with power to spare and there was nothing"** ([ADR-011](docs/adr/ADR-011-power-before-verdict.md)).
+
+What stays optimistic, named rather than buried: the standard error assumes independent bars, while overlapping feature windows make neighbours dependent. **100% power must not be read literally** until a stationary bootstrap corrects it. The conclusion does not rest on it - 0.97 against 3.49 points is arithmetic, not inference.
 
 ## Architecture
 
@@ -118,12 +124,23 @@ uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/raw --mod
 uv run forecast-lab train    --target XAUUSD --timeframe 1H --dir data/raw --figures docs/status/figures
 ```
 
-`--dir data/raw` is not optional after a `fetch`: these three read `data/reference` by
+`--dir data/raw` is not optional after a `fetch`: those four read `data/reference` by
 default, because the published figures were computed there. The two directories hold
 different datasets and the commands will not silently mix them.
 
-The analysis commands - `features`, `train` and `baseline` - offer `--json`, because the
-dashboard is going to run them rather than reimplement them
+Then score every model across the whole history, with the detection floor that says
+whether the answer means anything:
+
+```bash
+uv run forecast-lab validate --target XAUUSD --timeframe 1H
+```
+
+This one defaults to `data/raw` rather than `data/reference`, because the reference
+exports are too short to cut into useful folds and carry no spread column - so the
+break-even would fall back to an assumption. The command prints which threshold it used.
+
+The analysis commands - `explore`, `features`, `baseline`, `train` and `validate` - all
+offer `--json`, because the dashboard is going to run them rather than reimplement them
 ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)). `align` does not yet.
 
 To reproduce the baseline this project corrects, point `ingest` at the original
@@ -159,16 +176,19 @@ Written as a research book: each document exists because a decision was made, an
 | [ADR-007](docs/adr/ADR-007-fitting-models-without-leaking.md) | Fitting on train, selecting on validation, scoring test once |
 | [ADR-008](docs/adr/ADR-008-figures-are-built-in-memory.md) | Figures are built in memory and committed as PNG |
 | [ADR-009](docs/adr/ADR-009-exploratory-analysis.md) | What exploratory analysis is for, and how it goes wrong quietly |
+| [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) | The cost of trading is measured from the venue, not assumed |
+| [ADR-011](docs/adr/ADR-011-power-before-verdict.md) | A negative result is only a finding if the design could have seen the effect |
 | [STATUS 2026-08-18](docs/status/STATUS-2026-08-dukascopy-probe.md) | The data probe: instrument identity confirmed, and why VIX was dropped |
 | [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md) | The baseline recomputed from data, and the 59% of gaps nobody had measured |
 | [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) | The feature matrix, and a guard that real data corrected twice |
 | [STATUS 2026-08-24](docs/status/STATUS-2026-08-models.md) | **The result**: nothing beats a constant by a detectable margin, on either dataset |
 | [STATUS 2026-08-27](docs/status/STATUS-2026-08-exploratory.md) | The EDA: three findings that dissolve, and a +0.923 correlation that is +0.13 |
+| [STATUS 2026-08-27](docs/status/STATUS-2026-08-walk-forward.md) | **The firmest test**: 40,587 bars, 2.26 points short, with the power to mean it |
 | [CHANGELOG](CHANGELOG.md) | Notable changes, newest first |
 
 ## Status
 
-The pipeline runs end to end: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, and fitted. What is missing is not the modelling but the **evaluation**: transaction costs, walk-forward validation, and the significance battery that turns "-0.21%" into a verdict rather than a number. The order was deliberate - the original went wrong before any model was fitted, so the corrections came first.
+The pipeline runs end to end and now answers the question it was built to answer: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, fitted, priced against the venue's own spread, and scored across nine years of history with a stated detection floor. What remains is the **significance battery** - Romano-Wolf, Hansen SPA, and the stationary bootstrap that corrects a standard error currently assuming independent bars - and the dashboard. The order was deliberate: the original went wrong before any model was fitted, so the corrections came first.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
@@ -179,8 +199,8 @@ The pipeline runs end to end: data in, verified, onto one timeline without a fab
 - [x] Features with an enforced stationarity policy, checked by rescaling rather than by name
 - [x] Models: six estimators, PCA, selection on validation, scored against the baselines
 - [x] Figures: the comparison the original could not draw, committed as PNG
-- [ ] The cost model and the power analysis, computed rather than carried
-- [ ] Walk-forward validation, to replace a split that cannot resolve the effect
+- [x] The cost model and the power analysis, computed rather than carried
+- [x] Walk-forward validation, and the detection floor that tells a null result from a blind one
 - [ ] The evaluation battery and the verdict
 - [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 

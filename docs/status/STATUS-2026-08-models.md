@@ -99,12 +99,16 @@ The reference exports are the "before" - the original project's own data, on whi
 | Its edge on test | **-0.21%** | **+0.15%** |
 | Minimum detectable effect (80%) | 2.17% | **1.46%** |
 | Is the edge inside the noise? | yes | yes |
-| Configurations clearing break-even (51.92%) | 1 of 18 | **0 of 18** |
+| Break-even it has to clear | 51.92% *(assumed 1 bp)* | **53.49%** *(measured spread)* |
+| Configurations clearing it | 1 of 18 | **0 of 18** |
+| Best accuracy reached | 53.16% | 51.48% |
 | Best edge on test | +1.85% (z = 2.13) | +0.55% (z = 0.94) |
 | Survives Holm for 18 tests (z >= 2.77) | no | no |
 | Range of AUC across 18 configurations | 0.491 - 0.527 | **0.503 - 0.516** |
 
 **The sign flips.** On one dataset the selected model loses by 0.21 points; on the other it wins by 0.15. Both are far inside their own resolution. This is the cleanest demonstration the project has produced that **the sign of a result this size carries no information** - and it is worth holding beside the original analysis, which reported a difference of the same order and read it as a discovery.
+
+**The thresholds differ because one dataset carries a spread and the other does not.** The reference exports have no spread column - their venue never published one - so that column falls back to an assumed 1 bp. The canonical data quotes both sides of the book, and the measured median round trip of 1.86 bps puts break-even at **53.49%** ([ADR-010](../adr/ADR-010-costs-are-measured-not-assumed.md)). The harsher, measured threshold applies to the larger sample, and **the best accuracy there falls two points short of it.**
 
 **Everything narrows, which is what absence of signal looks like when the sample grows.** The AUC range compresses from 0.036 to **0.013**, squeezing against 0.5 from both directions. The best edge on test falls from +1.85% to +0.55%: with more bars there is less room for noise to accumulate at the extreme. And **not one configuration of eighteen clears break-even**, where the smaller sample had one.
 

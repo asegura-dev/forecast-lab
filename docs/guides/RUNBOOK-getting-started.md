@@ -21,9 +21,9 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `218 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 8).
+Expect `299 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 9).
 
-**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 9.
+**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 10.
 
 ## 2. Getting data onto disk
 
@@ -92,7 +92,7 @@ uv run forecast-lab baseline --target XAUUSD --timeframe 1H --dir data/reference
 - **`random (train frequencies) 51.70%`** - a seeded coin flip, scoring **above** the honest baseline. Nothing has been discovered; it is the plainest demonstration that at this sample size the noise is the size of everything being argued about.
 - **`A rule fitted on this block would gain 2.01% for free`** - the distance between the honest baseline and an oracle. Larger than the effect anyone is trying to detect.
 
-Break-even against the friendliest cost assumption is **51.92%**. Nothing available without a model reaches it.
+Break-even is **51.92%** under an assumed 1 bp round trip, and **53.49%** against the spread measured at the venue. Nothing available without a model reaches either. On a series carrying a `spread` column the `train` command computes this itself and says so; on the reference exports, which have none, it falls back to the assumption and labels it.
 
 ## 6. The feature matrix
 
@@ -148,9 +148,33 @@ Eight PNGs, four per block. Start with `edge-<block>.png`: every configuration a
 
 **The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate, and it doubled the command's runtime: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
 
-If a model cannot be loaded, the command prints it and continues - see sec. 9 for the reason that happens on Windows.
+If a model cannot be loaded, the command prints it and continues - see sec. 10 for the reason that happens on Windows.
 
-## 8. The network tests
+## 8. Scoring across the whole history
+
+`train` scores one held-out block. `validate` scores nine years of it, and prints what size of edge the design could have seen.
+
+```
+uv run forecast-lab validate --target XAUUSD --timeframe 1H
+uv run forecast-lab validate --target XAUUSD --timeframe 1H --json
+uv run forecast-lab validate --target XAUUSD --timeframe 1H --folds 8 --rolling
+```
+
+Six estimators x five folds, about thirty seconds. It needs the canonical data (`data/raw`, the default here) - the reference exports are too short to cut into useful folds and carry no spread, so the break-even falls back to the assumed 1 bp and the command says so.
+
+**Reading the output.** Three parts, in the order the argument runs:
+
+- **The fold table** shows each train/test pair with the months it covers. Every training block ends before its test block begins; the purged bars in the line above it are the ones removed at each boundary because a label there reaches into the test window.
+- **The pooled table** is the result. Read `accuracy` and `baseline` *together*, never `edge` alone - which is the whole point of the paragraph the command prints underneath it. Under walk-forward every model's edge turns positive, and that is **not** the models improving: accuracy falls 0.21 points against the single split while the baseline falls 0.67, because averaging five stretches of history moves the majority class nearer a half. `vs break-even` is the column that decides anything.
+- **The power lines** state the minimum detectable effect over the bars actually scored, and how often this design would see an edge large enough to pay for costs. Expect `0.62%` and `100.0%`.
+
+Expect the run to put **HistGradientBoosting** at 51.23% against a 53.49% break-even - short by 2.26 points, with no model of six closer. [STATUS 2026-08-27](../status/STATUS-2026-08-walk-forward.md) works through what that does and does not establish.
+
+**Read the last paragraph the command prints.** It says the power figures assume independent bars and that overlapping feature windows break that assumption, so 100% is optimistic by an unmeasured factor. That caveat is not decoration: it is the one part of this output that is not yet nailed down, and it stays there until the stationary bootstrap exists.
+
+**`--rolling` answers a different question.** The default expanding window trains on all history to date, which is what a deployment would have. A fixed-length rolling window asks whether recent history predicts better than distant - a hypothesis about regime change rather than a validation design. Use it to explore, not to report.
+
+## 9. The network tests
 
 Excluded from the gates so the default run is hermetic - no network, any OS, fast. They hold the venue to its side of the contract: that hourly bars still open exactly on the hour (the invariant the whole alignment design rests on), that both sides combine into a positive spread, and that every mapped instrument still exists.
 
@@ -160,7 +184,7 @@ uv run python -m pytest -m network
 
 Run them when the data source misbehaves or before trusting a fresh `fetch`.
 
-## 9. When something fails
+## 10. When something fails
 
 **`DLL load failed ... an application control policy blocked this file`** - Windows Smart App Control blocking an unsigned binary extension. Two forms:
 
@@ -189,6 +213,12 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **The OneDrive exports fail to read** - Files On-Demand leaves placeholder stubs on disk. Open the folder in Explorer and let it hydrate before pointing `ingest --from` at it.
 
-## 10. What is not built yet
+## 11. What is not built yet
 
-`train` is where the pipeline currently stops. What is missing is the evaluation rather than the modelling: transaction costs and the break-even threshold, walk-forward validation to replace a single split whose minimum detectable effect is 2.17 points (larger than any edge worth having), and the significance battery that accounts for having scored eighteen configurations. Those turn "-0.21%" into a verdict instead of a number.
+`validate` is where the pipeline currently stops, and it now produces a verdict rather than a number: 2.26 points short of paying for costs, measured over 40,587 bars by a design that resolves 0.62.
+
+Three things are still owed, each named in [ADR-011](../adr/ADR-011-power-before-verdict.md):
+
+- **The significance battery** - Romano-Wolf and Hansen SPA for having scored many configurations, and the **stationary bootstrap** that corrects a standard error currently assuming independent bars. Until it exists, treat every power figure here as optimistic.
+- **The gap benchmark.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face - but those are exactly the hours that pay overnight financing. Until the swap is modelled, it stays a measurement rather than a strategy.
+- **The dashboard** ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md), still Plan).

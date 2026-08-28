@@ -24,6 +24,7 @@ from typing import Annotated, Any
 import pandas as pd
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from forecast_lab.contracts import (
@@ -44,16 +45,21 @@ from forecast_lab.ingest import (
 )
 from forecast_lab.ingest.importer import ImportReport
 from forecast_lab.research import (
+    DEFAULT_FOLDS,
     LONGEST_WINDOW,
     PCA_VARIANCE,
+    Design,
     Direction,
     FeatureMatrix,
     Mode,
     PolicyReport,
+    PooledScore,
     ScaleVerdict,
+    WalkForward,
     align_to_target,
     availability,
     block_chart,
+    break_even,
     build_features,
     by_year,
     calibration_chart,
@@ -63,6 +69,7 @@ from forecast_lab.research import (
     correlation_pairs,
     count_moves,
     describe,
+    design,
     edge_chart,
     evaluate_baselines,
     evaluate_stationarity,
@@ -78,12 +85,16 @@ from forecast_lab.research import (
     probe_scale,
     qq_points,
     redundancy_chart,
+    required_sample,
     returns_overview,
     roc_chart,
     roc_points,
     score_model,
+    score_walk_forward,
+    summarise_spread,
     temporal_split,
     variance_chart,
+    walk_forward,
     yearly_overview,
 )
 
@@ -101,9 +112,12 @@ DEFAULT_MANIFEST = Path("docs/status/data-manifest.json")
 #: Figures are committed - they are derived statistics rather than vendor data, and a
 #: research log whose charts only exist on the author's machine is not a research log.
 DEFAULT_FIGURES = Path("docs/status/figures")
-#: Accuracy at which an hourly strategy pays for its own costs, under the friendliest
-#: assumption. Carried from the planning analysis until `costs.py` computes it.
-BREAK_EVEN = 0.5192
+#: Break-even used when the series carries no spread column - the reference exports do
+#: not, since their venue never published one. It assumes a 1 bp round trip, which is
+#: optimistic: measured on the canonical data the median spread is 1.86 bps and the
+#: break-even is **53.49%**. Whenever a spread is available the figure is computed from
+#: it rather than taken from here (ADR-010).
+FALLBACK_BREAK_EVEN = 0.5192
 
 
 @app.callback()
@@ -820,6 +834,11 @@ def train_command(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
 
+    # The accuracy that would pay for its own costs. Computed from the venue's own
+    # quoted spread when the series carries one; the reference exports do not, so those
+    # runs fall back to the optimistic assumption and say so.
+    threshold, threshold_source = _break_even_for(series[spec.name])
+
     # The baseline a constant predictor achieves on each block: it predicts train's
     # majority, so its accuracy is that class's share OF THAT BLOCK.
     train_up = baselines["train"]
@@ -893,6 +912,7 @@ def train_command(
         f"[bold]{spec.name}[/bold] at {interval.value}, horizon {horizon}, mode "
         f"{selected.value}: {matrix.rows:,} rows x {matrix.columns} columns"
     )
+    console.print(f"[dim]Break-even accuracy {threshold:.2%} - {threshold_source}.[/dim]")
     if unavailable:
         # Never silent. A comparison that quietly omits a model is a comparison of a
         # different experiment than the one the table claims to describe.
@@ -910,7 +930,7 @@ def train_command(
     console.print(_score_table([s for s in scores if s.block == "test"], block_baseline["test"]))
 
     console.print(
-        f"\nSelected on validation AUC: [bold]{chosen.key}[/bold] "
+        f"\nSelected on validation AUC: [bold]{escape(chosen.key)}[/bold] "
         f"(AUC {chosen.auc:.4f}, accuracy {chosen.accuracy:.2%})"
     )
     if on_test is not None:
@@ -920,6 +940,11 @@ def train_command(
             f"{on_test.baseline_accuracy:.2%} baseline - it {verdict} the constant "
             f"predictor by [bold]{on_test.edge:+.2%}[/bold]."
         )
+        if on_test.accuracy < threshold:
+            console.print(
+                f"It does not reach the {threshold:.2%} needed to cover costs either - "
+                f"short by [bold]{threshold - on_test.accuracy:.2%}[/bold]."
+            )
         if on_test.specificity < 0.05:
             console.print(
                 f"[yellow]Specificity {on_test.specificity:.2%} with recall "
@@ -955,6 +980,7 @@ def train_command(
         try:
             written = _write_figures(
                 figures, scores, fitted_probabilities, direction, block_baseline, chosen,
+                break_even_accuracy=threshold,
                 matrix=matrix, correlations=correlations, redundant=redundant,
                 variances=variances, blocks=blocks,
             )
@@ -962,6 +988,307 @@ def train_command(
             console.print(f"[red]Could not write figures: {exc}[/red]")
             raise typer.Exit(code=1) from None
         console.print(f"\n{len(written)} figure(s) written to [bold]{figures}[/bold]")
+
+
+@app.command("validate")
+def validate_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol whose direction is predicted.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    horizon: Annotated[int, typer.Option("--horizon", help="Bars ahead to predict.")] = 1,
+    mode: Annotated[
+        str, typer.Option("--mode", "-m", help="focus (target only) or whole (every symbol).")
+    ] = "focus",
+    folds: Annotated[
+        int, typer.Option("--folds", help="Walk-forward folds; each tests the block after it.")
+    ] = DEFAULT_FOLDS,
+    rolling: Annotated[
+        bool,
+        typer.Option(
+            "--rolling/--expanding",
+            help="Rolling trains on a fixed window; expanding on all history to date.",
+        ),
+    ] = False,
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_DATA_DIR,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
+) -> None:
+    """Score every model across walk-forward folds, with the power the design carries.
+
+    `train` answers "what does this model score on one held-out block". This answers "what
+    does it score across the whole history, and could the design have seen an edge worth
+    having" - the second question being the one the original project never asked, and the
+    one that decides whether a negative result means anything at all.
+    """
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        selected = Mode(mode.lower())
+        catalogue = scan(directory)
+    except ValueError:
+        console.print(f"[red]Unknown mode {mode!r}: expected 'focus' or 'whole'.[/red]")
+        raise typer.Exit(code=2) from None
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    wanted = [s for s in catalogue.series if s.timeframe is interval]
+    if not any(s.symbol == spec for s in wanted):
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    series = {}
+    for item in wanted:
+        frame, _ = read_series(item.path, item.symbol, item.timeframe)
+        series[item.symbol.name] = frame
+
+    try:
+        matrix = build_features(spec.name, series, interval, mode=selected)
+        labels, _ = label_direction(series[spec.name]["close"], interval, horizon=horizon)
+        direction = labels["label"].where(labels["label"] != float(Direction.FLAT.value))
+        direction = direction.reindex(matrix.frame.index)
+        index = pd.DatetimeIndex(matrix.frame.index)
+        scheme = walk_forward(index, folds=folds, horizon=horizon, expanding=not rolling)
+        # The comparison the whole design exists to justify, counted the same way on both
+        # sides: usable rows, after the unlabelled ones are dropped.
+        split = temporal_split(index, horizon=horizon)
+        test_block = next(b.index for b in split.blocks if b.name == "test")
+        single_rows = int(direction.reindex(test_block).notna().sum())
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    threshold, threshold_source = _break_even_for(series[spec.name])
+    entries = availability()
+
+    pooled: list[PooledScore] = []
+    for entry in entries:
+        if not entry.available:
+            continue
+        try:
+            pooled.append(score_walk_forward(entry.spec, matrix.frame, direction, scheme))
+        except ForecastLabError as exc:
+            console.print(f"[yellow]{entry.name} not scored:[/yellow] [dim]{exc}[/dim]")
+
+    if not pooled:
+        console.print("[red]No model could be scored on any fold.[/red]")
+        raise typer.Exit(code=1)
+
+    pooled.sort(key=lambda p: p.edge, reverse=True)
+    best = pooled[0]
+    plan = design(best.n, label="walk-forward")
+    single = design(max(2, single_rows), label="single split")
+    #: What the models actually have to clear, in points above a coin flip.
+    gap = threshold - 0.5
+
+    if as_json:
+        console.print_json(
+            data=_validate_payload(
+                spec.name, interval, horizon, selected, scheme, pooled, plan,
+                single, threshold, threshold_source,
+            )
+        )
+        return
+
+    console.print(
+        f"[bold]{spec.name}[/bold] at {interval.value}, horizon {horizon}, mode "
+        f"{selected.value}: {len(scheme)} "
+        f"{'rolling' if rolling else 'expanding'} folds over {matrix.rows:,} rows"
+    )
+    console.print(
+        f"[dim]{scheme.purged} bars purged ({horizon} per boundary), "
+        f"{scheme.test_rows:,} scored. Break-even {threshold:.2%} - {threshold_source}.[/dim]"
+    )
+    for entry in entries:
+        if not entry.available:
+            console.print(f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]")
+
+    console.print("\n[bold]Folds[/bold]")
+    console.print(_fold_table(scheme))
+
+    console.print("\n[bold]Pooled across folds[/bold]")
+    console.print(_pooled_table(pooled, threshold))
+
+    console.print(
+        "\n[dim]The edge column is the gap to a constant predictor refitted inside every "
+        "fold. Where it beats the single-split edge, that is not the model improving: the "
+        "baseline falls further than the accuracy does, because averaging several "
+        "stretches of history moves the majority class nearer a half.[/dim]"
+    )
+    console.print(
+        f"\nOver {best.n:,} scored bars this design resolves "
+        f"[bold]{plan.minimum_detectable_effect:.2%}[/bold] at 80% power, against "
+        f"{single.minimum_detectable_effect:.2%} for a single split of the same series "
+        f"({single_rows:,} bars)."
+    )
+    console.print(
+        f"An edge of [bold]{gap:.2%}[/bold] would pay for costs, and this design would "
+        f"see one [bold]{plan.power_for(gap):.1%}[/bold] of the time - it needs only "
+        f"{required_sample(gap):,} bars to do so."
+    )
+    clearing = [p for p in pooled if p.accuracy >= threshold]
+    if clearing:
+        for entry_score in clearing:
+            console.print(
+                f"[green]{escape(entry_score.key)} clears it at {entry_score.accuracy:.2%}.[/green]"
+            )
+    else:
+        console.print(
+            f"[bold]None of the {len(pooled)} models reaches it.[/bold] The best is "
+            f"{escape(best.key)} at {best.accuracy:.2%}, short by "
+            f"{threshold - best.accuracy:.2%} - which makes the negative result a finding "
+            "rather than a failure to look."
+        )
+    console.print(
+        f"[dim]Those power figures assume independent bars. Overlapping feature windows "
+        f"make neighbouring rows dependent, so the effective sample is smaller than the "
+        f"row count and the power is optimistic by an unmeasured factor. The verdict "
+        f"above does not rest on it - {best.edge:.2%} against {gap:.2%} is arithmetic, "
+        f"not inference.[/dim]"
+    )
+
+
+def _fold_table(scheme: WalkForward) -> Table:
+    """The blocks themselves, so a reader can see that none trains on its own future."""
+    table = Table(box=None, pad_edge=False)
+    table.add_column("fold", justify="right")
+    table.add_column("train", justify="right")
+    table.add_column("test", justify="right")
+    table.add_column("tests from", justify="left")
+    table.add_column("to", justify="left")
+    for fold in scheme:
+        table.add_row(
+            str(fold.number),
+            f"{fold.train_rows:,}",
+            f"{fold.test_rows:,}",
+            fold.test[0].strftime("%Y-%m"),
+            fold.test[-1].strftime("%Y-%m"),
+        )
+    return table
+
+
+def _pooled_table(pooled: list[PooledScore], threshold: float) -> Table:
+    """Accuracy beside its baseline on every row - the pairing `train` also enforces."""
+    table = Table(box=None, pad_edge=False)
+    table.add_column("model", justify="left", no_wrap=True)
+    table.add_column("n", justify="right")
+    table.add_column("accuracy", justify="right")
+    table.add_column("baseline", justify="right")
+    table.add_column("edge", justify="right")
+    table.add_column("fold range", justify="right", no_wrap=True)
+    table.add_column("vs break-even", justify="right")
+    for entry in pooled:
+        short = entry.accuracy - threshold
+        table.add_row(
+            entry.model,
+            f"{entry.n:,}",
+            f"{entry.accuracy:.2%}",
+            f"{entry.baseline_accuracy:.2%}",
+            f"[{'green' if entry.edge > 0 else 'red'}]{entry.edge:+.2%}[/]",
+            f"{entry.worst_fold:.2%}-{entry.best_fold:.2%}",
+            f"[{'green' if short >= 0 else 'red'}]{short:+.2%}[/]",
+        )
+    return table
+
+
+def _validate_payload(
+    symbol: str,
+    interval: Timeframe,
+    horizon: int,
+    mode: Mode,
+    scheme: WalkForward,
+    pooled: list[PooledScore],
+    plan: Design,
+    single: Design,
+    threshold: float,
+    threshold_source: str,
+) -> dict[str, Any]:
+    gap = threshold - 0.5
+    return {
+        "symbol": symbol,
+        "timeframe": interval.value,
+        "horizon": horizon,
+        "mode": mode.value,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "scheme": {
+            "folds": len(scheme),
+            "expanding": scheme.expanding,
+            "purged": scheme.purged,
+            "scored": scheme.test_rows,
+            "blocks": [
+                {
+                    "fold": fold.number,
+                    "train_rows": fold.train_rows,
+                    "test_rows": fold.test_rows,
+                    "tests_from": fold.test[0].isoformat(),
+                    "tests_to": fold.test[-1].isoformat(),
+                }
+                for fold in scheme
+            ],
+        },
+        "break_even": {
+            "accuracy": threshold,
+            "edge_required": gap,
+            "source": threshold_source,
+        },
+        "power": {
+            "walk_forward_mde": plan.minimum_detectable_effect,
+            "single_split_mde": single.minimum_detectable_effect,
+            "single_split_rows": single.n,
+            "power_for_break_even": plan.power_for(gap),
+            "bars_required": required_sample(gap),
+        },
+        "models": [
+            {
+                "model": entry.model,
+                "representation": entry.representation,
+                "n": entry.n,
+                "accuracy": entry.accuracy,
+                "baseline_accuracy": entry.baseline_accuracy,
+                "edge": entry.edge,
+                "clears_break_even": entry.accuracy >= threshold,
+                "folds": [
+                    {
+                        "fold": fold.number,
+                        "n": fold.n,
+                        "accuracy": fold.accuracy,
+                        "baseline_accuracy": fold.baseline_accuracy,
+                    }
+                    for fold in entry.folds
+                ],
+                "skipped": [{"fold": n, "reason": why} for n, why in entry.skipped],
+            }
+            for entry in pooled
+        ],
+    }
+
+
+def _break_even_for(bars: pd.DataFrame) -> tuple[float, str]:
+    """The break-even accuracy, measured from the venue's spread where one exists.
+
+    Returns the figure and a phrase describing where it came from, because a threshold
+    quoted without its cost assumption is the thing this project spent a week correcting:
+    every accuracy here was compared against 51.92% while the measured spread sat unused
+    in a downloaded column.
+    """
+    if "spread" not in bars.columns:
+        return FALLBACK_BREAK_EVEN, "no spread in this series, so an optimistic 1 bp is assumed"
+    try:
+        summary = summarise_spread(bars)
+        computed = break_even(summary.median_bps, summary.mean_absolute_return_bps)
+    except ForecastLabError:
+        return FALLBACK_BREAK_EVEN, "the spread could not be summarised; assuming 1 bp"
+    return (
+        computed.accuracy,
+        f"from a measured median spread of {summary.median_bps:.2f} bps against a "
+        f"{summary.mean_absolute_return_bps:.2f} bps average move",
+    )
 
 
 def _write_figures(
@@ -972,6 +1299,7 @@ def _write_figures(
     baselines: dict[str, float],
     chosen: Any,
     *,
+    break_even_accuracy: float,
     matrix: Any,
     correlations: pd.Series,
     redundant: pd.DataFrame,
@@ -996,7 +1324,7 @@ def _write_figures(
 
         figures = {
             f"edge-{block}": edge_chart(
-                block_scores, baseline=baselines[block], break_even=BREAK_EVEN,
+                block_scores, baseline=baselines[block], break_even=break_even_accuracy,
                 block=block, selected=chosen.key,
             ),
             f"roc-{block}": roc_chart(

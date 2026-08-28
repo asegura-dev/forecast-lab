@@ -1,0 +1,316 @@
+{
+  "symbol": "XAUUSD",
+  "timeframe": "1H",
+  "horizon": 1,
+  "mode": "focus",
+  "generated_at": "2026-08-27T19:11:47.397688+00:00",
+  "scheme": {
+    "folds": 5,
+    "expanding": true,
+    "purged": 5,
+    "scored": 42455,
+    "blocks": [
+      {
+        "fold": 1,
+        "train_rows": 8490,
+        "test_rows": 8491,
+        "tests_from": "2019-06-21T12:00:00+00:00",
+        "tests_to": "2020-11-26T01:00:00+00:00"
+      },
+      {
+        "fold": 2,
+        "train_rows": 16981,
+        "test_rows": 8491,
+        "tests_from": "2020-11-26T02:00:00+00:00",
+        "tests_to": "2022-05-06T01:00:00+00:00"
+      },
+      {
+        "fold": 3,
+        "train_rows": 25472,
+        "test_rows": 8491,
+        "tests_from": "2022-05-06T02:00:00+00:00",
+        "tests_to": "2023-10-11T09:00:00+00:00"
+      },
+      {
+        "fold": 4,
+        "train_rows": 33963,
+        "test_rows": 8491,
+        "tests_from": "2023-10-11T10:00:00+00:00",
+        "tests_to": "2025-03-19T22:00:00+00:00"
+      },
+      {
+        "fold": 5,
+        "train_rows": 42454,
+        "test_rows": 8491,
+        "tests_from": "2025-03-19T23:00:00+00:00",
+        "tests_to": "2026-08-26T12:00:00+00:00"
+      }
+    ]
+  },
+  "break_even": {
+    "accuracy": 0.5349268747697784,
+    "edge_required": 0.034926874769778404,
+    "source": "from a measured median spread of 1.86 bps against a 13.35 bps average move"
+  },
+  "power": {
+    "walk_forward_mde": 0.006171071825814692,
+    "single_split_mde": 0.014545017330852384,
+    "single_split_rows": 7306,
+    "power_for_break_even": 1.0,
+    "bars_required": 1268
+  },
+  "models": [
+    {
+      "model": "HistGradientBoosting",
+      "representation": "raw",
+      "n": 40587,
+      "accuracy": 0.5122822578658192,
+      "baseline_accuracy": 0.5025747160420825,
+      "edge": 0.009707541823736676,
+      "clears_break_even": false,
+      "folds": [
+        {
+          "fold": 1,
+          "n": 8117,
+          "accuracy": 0.5168165578415671,
+          "baseline_accuracy": 0.48219785635086854
+        },
+        {
+          "fold": 2,
+          "n": 8118,
+          "accuracy": 0.5187238236018724,
+          "baseline_accuracy": 0.5052968711505297
+        },
+        {
+          "fold": 3,
+          "n": 8119,
+          "accuracy": 0.5141027220100998,
+          "baseline_accuracy": 0.4909471609804163
+        },
+        {
+          "fold": 4,
+          "n": 8115,
+          "accuracy": 0.5043746149106593,
+          "baseline_accuracy": 0.522365988909427
+        },
+        {
+          "fold": 5,
+          "n": 8118,
+          "accuracy": 0.5073909830007391,
+          "baseline_accuracy": 0.5120719389012072
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "model": "Random Forest",
+      "representation": "raw",
+      "n": 40587,
+      "accuracy": 0.5112228053317565,
+      "baseline_accuracy": 0.5025747160420825,
+      "edge": 0.008648089289673977,
+      "clears_break_even": false,
+      "folds": [
+        {
+          "fold": 1,
+          "n": 8117,
+          "accuracy": 0.5137366021929284,
+          "baseline_accuracy": 0.48219785635086854
+        },
+        {
+          "fold": 2,
+          "n": 8118,
+          "accuracy": 0.5141660507514166,
+          "baseline_accuracy": 0.5052968711505297
+        },
+        {
+          "fold": 3,
+          "n": 8119,
+          "accuracy": 0.5092991747752186,
+          "baseline_accuracy": 0.4909471609804163
+        },
+        {
+          "fold": 4,
+          "n": 8115,
+          "accuracy": 0.506962415280345,
+          "baseline_accuracy": 0.522365988909427
+        },
+        {
+          "fold": 5,
+          "n": 8118,
+          "accuracy": 0.5119487558511949,
+          "baseline_accuracy": 0.5120719389012072
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "model": "LightGBM",
+      "representation": "raw",
+      "n": 40587,
+      "accuracy": 0.5110749747456081,
+      "baseline_accuracy": 0.5025747160420825,
+      "edge": 0.008500258703525665,
+      "clears_break_even": false,
+      "folds": [
+        {
+          "fold": 1,
+          "n": 8117,
+          "accuracy": 0.5102870518664532,
+          "baseline_accuracy": 0.48219785635086854
+        },
+        {
+          "fold": 2,
+          "n": 8118,
+          "accuracy": 0.5160137965016014,
+          "baseline_accuracy": 0.5052968711505297
+        },
+        {
+          "fold": 3,
+          "n": 8119,
+          "accuracy": 0.5090528390195836,
+          "baseline_accuracy": 0.4909471609804163
+        },
+        {
+          "fold": 4,
+          "n": 8115,
+          "accuracy": 0.5091805298829328,
+          "baseline_accuracy": 0.522365988909427
+        },
+        {
+          "fold": 5,
+          "n": 8118,
+          "accuracy": 0.510840108401084,
+          "baseline_accuracy": 0.5120719389012072
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "model": "XGBoost",
+      "representation": "raw",
+      "n": 40587,
+      "accuracy": 0.5107300367112623,
+      "baseline_accuracy": 0.5025747160420825,
+      "edge": 0.008155320669179789,
+      "clears_break_even": false,
+      "folds": [
+        {
+          "fold": 1,
+          "n": 8117,
+          "accuracy": 0.5200197117161512,
+          "baseline_accuracy": 0.48219785635086854
+        },
+        {
+          "fold": 2,
+          "n": 8118,
+          "accuracy": 0.5105937423010594,
+          "baseline_accuracy": 0.5052968711505297
+        },
+        {
+          "fold": 3,
+          "n": 8119,
+          "accuracy": 0.5144722256435522,
+          "baseline_accuracy": 0.4909471609804163
+        },
+        {
+          "fold": 4,
+          "n": 8115,
+          "accuracy": 0.5003080714725816,
+          "baseline_accuracy": 0.522365988909427
+        },
+        {
+          "fold": 5,
+          "n": 8118,
+          "accuracy": 0.5082532643508253,
+          "baseline_accuracy": 0.5120719389012072
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "model": "Naive Bayes",
+      "representation": "raw",
+      "n": 40587,
+      "accuracy": 0.5076748712641979,
+      "baseline_accuracy": 0.5025747160420825,
+      "edge": 0.005100155222115377,
+      "clears_break_even": false,
+      "folds": [
+        {
+          "fold": 1,
+          "n": 8117,
+          "accuracy": 0.5118886288037452,
+          "baseline_accuracy": 0.48219785635086854
+        },
+        {
+          "fold": 2,
+          "n": 8118,
+          "accuracy": 0.5123183050012319,
+          "baseline_accuracy": 0.5052968711505297
+        },
+        {
+          "fold": 3,
+          "n": 8119,
+          "accuracy": 0.5092991747752186,
+          "baseline_accuracy": 0.4909471609804163
+        },
+        {
+          "fold": 4,
+          "n": 8115,
+          "accuracy": 0.4931608133086876,
+          "baseline_accuracy": 0.522365988909427
+        },
+        {
+          "fold": 5,
+          "n": 8118,
+          "accuracy": 0.5117023897511702,
+          "baseline_accuracy": 0.5120719389012072
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "model": "Logistic Regression",
+      "representation": "raw",
+      "n": 40587,
+      "accuracy": 0.5066893340232094,
+      "baseline_accuracy": 0.5025747160420825,
+      "edge": 0.004114617981126889,
+      "clears_break_even": false,
+      "folds": [
+        {
+          "fold": 1,
+          "n": 8117,
+          "accuracy": 0.5102870518664532,
+          "baseline_accuracy": 0.48219785635086854
+        },
+        {
+          "fold": 2,
+          "n": 8118,
+          "accuracy": 0.516629711751663,
+          "baseline_accuracy": 0.5052968711505297
+        },
+        {
+          "fold": 3,
+          "n": 8119,
+          "accuracy": 0.5037566202734327,
+          "baseline_accuracy": 0.4909471609804163
+        },
+        {
+          "fold": 4,
+          "n": 8115,
+          "accuracy": 0.4993222427603204,
+          "baseline_accuracy": 0.522365988909427
+        },
+        {
+          "fold": 5,
+          "n": 8118,
+          "accuracy": 0.5034491254003449,
+          "baseline_accuracy": 0.5120719389012072
+        }
+      ],
+      "skipped": []
+    }
+  ]
+}

@@ -40,6 +40,12 @@ from forecast_lab.research.models.training import (
     hard,
     positive_rate,
 )
+from forecast_lab.research.models.validation import (
+    FoldScore,
+    PooledScore,
+    ValidationError,
+    score_walk_forward,
+)
 
 __all__ = [
     "CATALOGUE",
@@ -47,11 +53,14 @@ __all__ = [
     "RANDOM_STATE",
     "Availability",
     "Fitted",
+    "FoldScore",
     "MetricError",
     "ModelScore",
     "ModelSpec",
+    "PooledScore",
     "RocPoints",
     "TrainingError",
+    "ValidationError",
     "availability",
     "build_pipeline",
     "confusion",
@@ -60,4 +69,5 @@ __all__ = [
     "positive_rate",
     "roc_points",
     "score_model",
+    "score_walk_forward",
 ]
