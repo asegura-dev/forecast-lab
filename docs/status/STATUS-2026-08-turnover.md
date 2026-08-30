@@ -82,13 +82,29 @@ At the friendliest assumption the rejection is thin - a one-sided 5% test needs 
 
 It also fails the other test independently: its edge over the constant predictor is **+0.51%**, and a constant predictor is not a strategy anyone would run.
 
-## 5. What this run does not settle
+## 5. Widened to eighteen configurations
+
+`validate --pca` (2026-08-30) scores the same six estimators on raw features and on PCA at 95% and 90% of training variance - the eighteen configurations the original project compared, now across folds and against per-model thresholds.
+
+**None clears its own break-even, and every PCA row lands below its raw counterpart.** The closest three:
+
+| Configuration | Accuracy | Flip rate | Break-even | Short by |
+|---|---:|---:|---:|---:|
+| **Naive Bayes** (raw) | 50.77% | 17.6% | 51.23% | **-0.46%** |
+| Naive Bayes (pca-95) | 50.72% | 20.7% | 51.44% | -0.72% |
+| Naive Bayes (pca-90) | 50.96% | 25.0% | 51.75% | -0.79% |
+
+The worst is LightGBM (pca-95) at 2.43 points short. PCA is off by default in `validate` because it triples an already slow command for a representation that lost every single-split run; that reason was an expectation until this run, and is now a measurement.
+
+Note what PCA does to *turnover*: it raises the flip rate in every case (Naive Bayes from 17.6% to 20.7% and 25.0%), so a reduced representation both scores slightly worse and trades slightly more, and is penalised twice.
+
+## 6. What this run does not settle
 
 - **The swap is still unmodelled**, and it is the one that matters. It raises every threshold above, and it is charged in exactly the hours the gap finding lives in.
 - **Slippage and the rollover surcharge** are likewise absent. Both raise the bar.
 - **PCA representations are still not scored across folds**, carried from ADR-011.
 - **The remaining escape route is narrower than ADR-010 suggested.** It offered "a trend follower holding twenty bars pays a fifth as much". These models already hold up to 5.7 bars and already take part of that discount. The room left is between 5.7 bars and twenty, not between one and twenty.
 
-## 6. What this cost to find
+## 7. What this cost to find
 
 Nothing but running it. Both defects sat in prose that reads as careful - one clause phrased as a measurement, one caveat phrased as rigour - and both survived being written, reviewed and published. Neither survived being computed. That is the same argument this repository makes about the analysis it corrects, with the repository itself as the worked example.

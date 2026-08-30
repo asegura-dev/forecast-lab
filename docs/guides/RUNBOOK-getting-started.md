@@ -21,7 +21,7 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `299 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 9).
+Expect `357 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 9).
 
 **Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 10.
 
@@ -59,6 +59,7 @@ uv run forecast-lab symbols
 
 ```
 uv run forecast-lab align --target XAUUSD --timeframe 1H
+uv run forecast-lab align --target XAUUSD --timeframe 1H --json
 ```
 
 **What you are looking at.** The target's own bars define the timeline and nothing may extend it. Auxiliary symbols are read onto it by carrying their last known value forward, and each one reports how often that happened and how old the value got.
@@ -158,6 +159,7 @@ If a model cannot be loaded, the command prints it and continues - see sec. 10 f
 uv run forecast-lab validate --target XAUUSD --timeframe 1H
 uv run forecast-lab validate --target XAUUSD --timeframe 1H --json
 uv run forecast-lab validate --target XAUUSD --timeframe 1H --folds 8 --rolling
+uv run forecast-lab validate --target XAUUSD --timeframe 1H --pca      # 18 configurations
 ```
 
 Six estimators x five folds, about forty seconds - the extra time is the bootstrap. It needs the canonical data (`data/raw`, the default here) - the reference exports are too short to cut into useful folds and carry no spread, so the break-even falls back to the assumed 1 bp and the command says so.
@@ -172,6 +174,8 @@ Six estimators x five folds, about forty seconds - the extra time is the bootstr
 Expect the run to put **Naive Bayes** closest, at 50.77% against its own 51.23% break-even - short by 0.46 points, 1.86 standard errors, with no model of six closer. Note that it is *fifth* by accuracy: HistGradientBoosting scores 51.23% and still falls further short, because it trades twice as often. [STATUS 2026-08-28](../status/STATUS-2026-08-turnover.md) works through what that does and does not establish.
 
 **Read the last line the command prints.** It reports the serial dependence measured by a stationary bootstrap - expect an inflation around `0.97x`, meaning the standard errors above are already honest. Earlier versions of this project printed a caveat there instead, asserting the figures were optimistic by an unmeasured factor. They were not, and measuring it is what settled that.
+
+**`--pca` widens the comparison to eighteen configurations** - the six estimators on raw features and on PCA at 95% and 90% of training variance, which is what the original project compared. It is off by default because it triples the runtime, and measured, every PCA row scores below its raw counterpart *and* trades more often, so it is penalised twice. Use it to check that claim, not to find a winner.
 
 **`--rolling` answers a different question.** The default expanding window trains on all history to date, which is what a deployment would have. A fixed-length rolling window asks whether recent history predicts better than distant - a hypothesis about regime change rather than a validation design. Use it to explore, not to report.
 

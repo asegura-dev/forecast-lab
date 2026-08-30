@@ -2,6 +2,24 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-30 - The debts the ADRs had been recording
+
+Three of them, each written down as owed at the moment it was incurred rather than discovered later. Closing them found no new defects, which is the outcome an honest debt register is supposed to produce.
+
+### Added
+
+- **`tests/unit/test_cli.py` - the composition root finally has tests.** 35 of them, on synthetic bars in a temporary directory: every command reachable from `--help`, every `--json` payload parsed, the documented exit codes (2 malformed, 1 unanswerable), and the keys the verdict rests on. [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) recorded this as a debt it created; 322 tests were passing while nothing exercised the layer a user actually runs.
+- **`align --json`** - the last analysis command without it. ADR-005 sec. 5 makes it a hard rule so the dashboard can run the CLI rather than reimplement it, and a rule with one standing exception is a convention.
+- **`validate --pca`**, off by default. Discharges the debt ADR-011 recorded without making every run pay triple for a representation that loses.
+
+### Changed
+
+- **Eighteen configurations scored across folds, none clearing its own break-even.** Every PCA row lands below its raw counterpart, and PCA *raises* turnover in every case - Naive Bayes from 17.6% to 20.7% and 25.0% - so a reduced representation scores slightly worse and trades slightly more, and is penalised twice. The default was chosen on that expectation and is now a measurement.
+
+### Fixed
+
+- **`rich` was eating `[pca-95]` in the `validate` table**, so two rows of the same estimator were indistinguishable. Same markup defect as the one fixed in `train` on 2026-08-27, in a table written after it - the earlier fix escaped the string, this one avoids brackets entirely.
+
 ## 2026-08-28 - Two assumed parameters, measured, in opposite directions
 
 This repository exists to correct an analysis that assumed things. Two of its own numbers were still assumed, in the two modules built to stop exactly that.

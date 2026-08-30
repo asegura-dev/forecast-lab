@@ -298,6 +298,9 @@ def align_command(
         int,
         typer.Option("--max-staleness", help="Drop a carried value older than this, in seconds."),
     ] = 0,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
 ) -> None:
     """Put every symbol on the target's timeline, and report what had to be carried."""
     # The correction at the centre of the re-analysis: the target's own bars are the
@@ -334,6 +337,10 @@ def align_command(
     except ForecastLabError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
+
+    if as_json:
+        console.print_json(data=_align_payload(panel, interval, max_staleness))
+        return
 
     console.print(
         f"Timeline: [bold]{panel.rows:,}[/bold] bars of {panel.target} at {interval.value}, "
@@ -1017,6 +1024,10 @@ def validate_command(
             help="Rolling trains on a fixed window; expanding on all history to date.",
         ),
     ] = False,
+    pca: Annotated[
+        bool,
+        typer.Option("--pca/--no-pca", help="Also score PCA representations, at triple the cost."),
+    ] = False,
     directory: Annotated[
         Path, typer.Option("--dir", "-d", help="Directory holding the series.")
     ] = DEFAULT_DATA_DIR,
@@ -1074,14 +1085,27 @@ def validate_command(
     _, threshold_source = _break_even_for(series[spec.name])
     entries = availability()
 
+    # Off by default, and that is a measured choice rather than laziness: PCA lost every
+    # single-split run, and fitting it per fold per model triples a command that already
+    # takes forty seconds. ADR-011 recorded the omission as a debt; exposing it as a flag
+    # discharges the debt without making every run pay for a representation that loses.
+    representations: list[float | None] = [None]
+    if pca:
+        representations.extend(PCA_VARIANCE)
+
     pooled: list[PooledScore] = []
     for entry in entries:
         if not entry.available:
             continue
-        try:
-            pooled.append(score_walk_forward(entry.spec, matrix.frame, direction, scheme))
-        except ForecastLabError as exc:
-            console.print(f"[yellow]{entry.name} not scored:[/yellow] [dim]{exc}[/dim]")
+        for variance in representations:
+            try:
+                pooled.append(
+                    score_walk_forward(
+                        entry.spec, matrix.frame, direction, scheme, variance=variance
+                    )
+                )
+            except ForecastLabError as exc:
+                console.print(f"[yellow]{entry.name} not scored:[/yellow] [dim]{exc}[/dim]")
 
     if not pooled:
         console.print("[red]No model could be scored on any fold.[/red]")
@@ -1135,7 +1159,8 @@ def validate_command(
     console.print(
         f"[bold]{spec.name}[/bold] at {interval.value}, horizon {horizon}, mode "
         f"{selected.value}: {len(scheme)} "
-        f"{'rolling' if rolling else 'expanding'} folds over {matrix.rows:,} rows"
+        f"{'rolling' if rolling else 'expanding'} folds over {matrix.rows:,} rows, "
+        f"{len(pooled)} configuration(s)"
     )
     console.print(
         f"[dim]{scheme.purged} bars purged ({horizon} per boundary), "
@@ -1241,7 +1266,11 @@ def _pooled_table(pooled: list[PooledScore], thresholds: dict[str, float]) -> Ta
         threshold = thresholds[entry.key]
         short = entry.accuracy - threshold
         table.add_row(
-            entry.model,
+            # Parentheses rather than `entry.key`: rich reads `[pca-95]` as markup and
+            # eats it, which made two rows of the same model indistinguishable.
+            entry.model
+            if entry.representation == "raw"
+            else f"{entry.model} ({entry.representation})",
             f"{entry.accuracy:.2%}",
             f"{entry.baseline_accuracy:.2%}",
             f"[{'green' if entry.edge > 0 else 'red'}]{entry.edge:+.2%}[/]",
@@ -1357,6 +1386,44 @@ def _validate_payload(
                 "skipped": [{"fold": n, "reason": why} for n, why in entry.skipped],
             }
             for entry in pooled
+        ],
+    }
+
+
+def _align_payload(
+    panel: Any, interval: Timeframe, max_staleness: int
+) -> dict[str, Any]:
+    """The staleness report, machine-readable.
+
+    `align` was the last analysis command without `--json`, which ADR-005 makes a hard
+    rule precisely so the dashboard can run the CLI rather than reimplement it. Carried
+    here rather than deferred to Phase 4, because a rule with one standing exception is
+    a convention.
+
+    `max_staleness` is echoed back because a coverage report means something different
+    under a limit than without one: with no limit nothing is dropped for being old, and
+    the `missing` counts are purely history that has not started yet.
+    """
+    return {
+        "target": panel.target,
+        "timeframe": interval.value,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "max_staleness_seconds": max_staleness or None,
+        "rows": panel.rows,
+        "columns": len(panel.frame.columns),
+        "first": panel.frame.index[0].isoformat(),
+        "last": panel.frame.index[-1].isoformat(),
+        "coverage": [
+            {
+                "symbol": cover.symbol,
+                "rows": cover.rows,
+                "missing": cover.missing,
+                "missing_fraction": cover.missing_fraction,
+                "stale": cover.stale,
+                "stale_fraction": cover.stale_fraction,
+                "max_stale_seconds": cover.max_stale_seconds,
+            }
+            for cover in panel.coverage
         ],
     }
 

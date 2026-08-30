@@ -67,6 +67,6 @@ A strategy cannot choose to trade only in median conditions. The verdict is thin
 
 **What is still assumed**, and each raises the bar rather than lowering it: slippage beyond the quoted spread, the rollover surcharge on bars next to gaps, and the overnight swap. The swap is the one that matters, because it is charged in exactly the hours the gap finding lives in.
 
-**PCA representations still are not scored across folds**, carried forward from ADR-011 unchanged.
+~~**PCA representations still are not scored across folds**~~ - **discharged 2026-08-30** as `validate --pca`, off by default because it triples the runtime. Measured across folds, **18 configurations and none clears its own break-even**; every PCA row lands below its raw counterpart, which is what the default assumed and had not verified.
 
 **The escape route ADR-010 named is narrower than it looked.** It offered *"a trend follower holding for twenty bars pays a fifth as much"* as the way out. Measured, these models already hold 2.6 to 5.7 bars and already take part of that discount - and still fall short. The remaining room is between 5.7 bars and twenty, not between one and twenty.

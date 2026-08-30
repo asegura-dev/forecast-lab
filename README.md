@@ -141,9 +141,10 @@ This one defaults to `data/raw` rather than `data/reference`, because the refere
 exports are too short to cut into useful folds and carry no spread column - so the
 break-even would fall back to an assumption. The command prints which threshold it used.
 
-The analysis commands - `explore`, `features`, `baseline`, `train` and `validate` - all
-offer `--json`, because the dashboard is going to run them rather than reimplement them
-([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)). `align` does not yet.
+**Every** analysis command - `align`, `explore`, `features`, `baseline`, `train` and
+`validate` - offers `--json`, because the dashboard is going to run them rather than
+reimplement them ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)), and those
+payload shapes are pinned by tests rather than by intention.
 
 To reproduce the baseline this project corrects, point `ingest` at the original
 project's exports; they are read once and never feed the engine:
@@ -206,6 +207,7 @@ The pipeline runs end to end and now answers the question it was built to answer
 - [x] The cost model and the power analysis, computed rather than carried
 - [x] Walk-forward validation, and the detection floor that tells a null result from a blind one
 - [x] Turnover and serial dependence measured rather than assumed, and the margin corrected
+- [x] The composition root under test, `--json` everywhere, and PCA scored across folds
 - [ ] The evaluation battery and the verdict
 - [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 
