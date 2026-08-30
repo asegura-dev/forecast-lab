@@ -45,9 +45,11 @@ from forecast_lab.ingest import (
 )
 from forecast_lab.ingest.importer import ImportReport
 from forecast_lab.research import (
+    DEFAULT_FLIP_RATE,
     DEFAULT_FOLDS,
     LONGEST_WINDOW,
     PCA_VARIANCE,
+    Dependence,
     Design,
     Direction,
     FeatureMatrix,
@@ -58,6 +60,7 @@ from forecast_lab.research import (
     WalkForward,
     align_to_target,
     availability,
+    bars_held,
     block_chart,
     break_even,
     build_features,
@@ -78,6 +81,8 @@ from forecast_lab.research import (
     fit_and_predict,
     indicators,
     label_direction,
+    lag_one_autocorrelation,
+    measure_dependence,
     multicollinear_pairs,
     normality,
     positive_rate,
@@ -1064,7 +1069,9 @@ def validate_command(
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
 
-    threshold, threshold_source = _break_even_for(series[spec.name])
+    # Only the provenance phrase is wanted here: the threshold itself is now per model,
+    # computed from each one's measured turnover rather than from a shared assumption.
+    _, threshold_source = _break_even_for(series[spec.name])
     entries = availability()
 
     pooled: list[PooledScore] = []
@@ -1080,18 +1087,47 @@ def validate_command(
         console.print("[red]No model could be scored on any fold.[/red]")
         raise typer.Exit(code=1)
 
-    pooled.sort(key=lambda p: p.edge, reverse=True)
+    # Each model gets the threshold ITS OWN turnover implies. One global break-even
+    # assumes every model flips position half the time, which is what this project did
+    # for a week and what none of these models actually does (ADR-012).
+    thresholds = {entry.key: _break_even_at(series[spec.name], entry.flip_rate) for entry in pooled}
+
+    # Sorted by how close each comes to paying for itself - the question - rather than by
+    # edge over the baseline, which is a different one. Descending, so `pooled[0]` is the
+    # model a reader has to argue with, not the one easiest to dismiss.
+    pooled.sort(key=lambda p: p.accuracy - thresholds[p.key], reverse=True)
     best = pooled[0]
     plan = design(best.n, label="walk-forward")
     single = design(max(2, single_rows), label="single split")
-    #: What the models actually have to clear, in points above a coin flip.
-    gap = threshold - 0.5
+    #: What the closest model actually has to clear, in points above a coin flip.
+    gap = thresholds[best.key] - 0.5
+
+    # The caveat every power figure in this project carried, now measured rather than
+    # asserted. Computed on the model that comes closest, because that is the one whose
+    # margin a reader will want an interval around.
+    try:
+        dependence: Dependence | None = measure_dependence(best.correct_segments)
+    except ForecastLabError:
+        dependence = None
+
+    # The contrast that explains the result above: the inputs are strongly dependent and
+    # the thing being averaged is not. Quoted in ADR-012 sec. 2, so it is computed here
+    # rather than in a one-off script that nobody can rerun.
+    scored_index = matrix.frame.index
+    contrast = {
+        column: lag_one_autocorrelation([matrix.frame[column].dropna().to_numpy(dtype=float)])
+        for column in matrix.frame.columns
+    }
+    label_persistence = lag_one_autocorrelation(
+        [direction.reindex(scored_index).dropna().to_numpy(dtype=float)]
+    )
 
     if as_json:
         console.print_json(
             data=_validate_payload(
                 spec.name, interval, horizon, selected, scheme, pooled, plan,
-                single, threshold, threshold_source,
+                single, thresholds, threshold_source, dependence, contrast,
+                label_persistence,
             )
         )
         return
@@ -1103,7 +1139,7 @@ def validate_command(
     )
     console.print(
         f"[dim]{scheme.purged} bars purged ({horizon} per boundary), "
-        f"{scheme.test_rows:,} scored. Break-even {threshold:.2%} - {threshold_source}.[/dim]"
+        f"{scheme.test_rows:,} scored. Costs {threshold_source}.[/dim]"
     )
     for entry in entries:
         if not entry.available:
@@ -1113,13 +1149,14 @@ def validate_command(
     console.print(_fold_table(scheme))
 
     console.print("\n[bold]Pooled across folds[/bold]")
-    console.print(_pooled_table(pooled, threshold))
+    console.print(_pooled_table(pooled, thresholds))
 
     console.print(
-        "\n[dim]The edge column is the gap to a constant predictor refitted inside every "
-        "fold. Where it beats the single-split edge, that is not the model improving: the "
-        "baseline falls further than the accuracy does, because averaging several "
-        "stretches of history moves the majority class nearer a half.[/dim]"
+        "\n[dim]`edge` is the gap to a constant predictor refitted inside every fold; "
+        "`break-even` is the accuracy each model needs to cover ITS OWN turnover. A "
+        "persistent model trades less and faces a lower bar - which is why these differ "
+        "by more than a point across the table, and why one global threshold (this "
+        "project published 53.49% for a week) flatters the verdict.[/dim]"
     )
     console.print(
         f"\nOver {best.n:,} scored bars this design resolves "
@@ -1128,30 +1165,40 @@ def validate_command(
         f"({single_rows:,} bars)."
     )
     console.print(
-        f"An edge of [bold]{gap:.2%}[/bold] would pay for costs, and this design would "
-        f"see one [bold]{plan.power_for(gap):.1%}[/bold] of the time - it needs only "
-        f"{required_sample(gap):,} bars to do so."
+        f"The closest model needs an edge of [bold]{gap:.2%}[/bold] over a coin flip to "
+        f"pay for itself; this design would see one [bold]{plan.power_for(gap):.1%}[/bold] "
+        f"of the time, from only {required_sample(gap):,} bars."
     )
-    clearing = [p for p in pooled if p.accuracy >= threshold]
+    clearing = [p for p in pooled if p.accuracy >= thresholds[p.key]]
     if clearing:
         for entry_score in clearing:
             console.print(
-                f"[green]{escape(entry_score.key)} clears it at {entry_score.accuracy:.2%}.[/green]"
+                f"[green]{escape(entry_score.key)} clears its own break-even of "
+                f"{thresholds[entry_score.key]:.2%} at {entry_score.accuracy:.2%}.[/green]"
             )
     else:
+        short = thresholds[best.key] - best.accuracy
         console.print(
-            f"[bold]None of the {len(pooled)} models reaches it.[/bold] The best is "
-            f"{escape(best.key)} at {best.accuracy:.2%}, short by "
-            f"{threshold - best.accuracy:.2%} - which makes the negative result a finding "
-            "rather than a failure to look."
+            f"[bold]None of the {len(pooled)} models reaches its own break-even.[/bold] The "
+            f"closest is {escape(best.key)} at {best.accuracy:.2%} against "
+            f"{thresholds[best.key]:.2%}, short by [bold]{short:.2%}[/bold] "
+            f"({short / plan.standard_error:.2f} standard errors) while holding a position "
+            f"{bars_held(best.flip_rate):.1f} bars."
         )
-    console.print(
-        f"[dim]Those power figures assume independent bars. Overlapping feature windows "
-        f"make neighbouring rows dependent, so the effective sample is smaller than the "
-        f"row count and the power is optimistic by an unmeasured factor. The verdict "
-        f"above does not rest on it - {best.edge:.2%} against {gap:.2%} is arithmetic, "
-        f"not inference.[/dim]"
-    )
+    if dependence is not None:
+        verdict = (
+            "so the standard errors above are already honest"
+            if not dependence.material
+            else "so every power figure above is optimistic by that factor"
+        )
+        console.print(
+            f"[dim]Serial dependence, measured rather than assumed: a stationary bootstrap "
+            f"over {dependence.n:,} bars puts the standard error at "
+            f"{dependence.bootstrap_standard_error:.4%} against "
+            f"{dependence.naive_standard_error:.4%} for independent draws - an inflation of "
+            f"{dependence.inflation:.2f}x (lag-one autocorrelation {dependence.lag_one:+.4f}, "
+            f"block length {max(dependence.blocks):.1f}), {verdict}.[/dim]"
+        )
 
 
 def _fold_table(scheme: WalkForward) -> Table:
@@ -1173,25 +1220,34 @@ def _fold_table(scheme: WalkForward) -> Table:
     return table
 
 
-def _pooled_table(pooled: list[PooledScore], threshold: float) -> Table:
-    """Accuracy beside its baseline on every row - the pairing `train` also enforces."""
+def _pooled_table(pooled: list[PooledScore], thresholds: dict[str, float]) -> Table:
+    """Accuracy beside both things it has to beat: the baseline, and its own costs.
+
+    `flip` and `held` are on the same row deliberately. A model that changes position
+    every 5.7 bars faces a threshold more than a point below one that changes every 2.6,
+    and putting the turnover next to the threshold is what makes that legible instead of
+    looking like an unexplained difference between rows.
+    """
     table = Table(box=None, pad_edge=False)
     table.add_column("model", justify="left", no_wrap=True)
-    table.add_column("n", justify="right")
     table.add_column("accuracy", justify="right")
     table.add_column("baseline", justify="right")
     table.add_column("edge", justify="right")
-    table.add_column("fold range", justify="right", no_wrap=True)
-    table.add_column("vs break-even", justify="right")
+    table.add_column("flip", justify="right")
+    table.add_column("held", justify="right")
+    table.add_column("break-even", justify="right")
+    table.add_column("short by", justify="right")
     for entry in pooled:
+        threshold = thresholds[entry.key]
         short = entry.accuracy - threshold
         table.add_row(
             entry.model,
-            f"{entry.n:,}",
             f"{entry.accuracy:.2%}",
             f"{entry.baseline_accuracy:.2%}",
             f"[{'green' if entry.edge > 0 else 'red'}]{entry.edge:+.2%}[/]",
-            f"{entry.worst_fold:.2%}-{entry.best_fold:.2%}",
+            f"{entry.flip_rate:.1%}",
+            f"{bars_held(entry.flip_rate):.1f}",
+            f"{threshold:.2%}",
             f"[{'green' if short >= 0 else 'red'}]{short:+.2%}[/]",
         )
     return table
@@ -1206,10 +1262,14 @@ def _validate_payload(
     pooled: list[PooledScore],
     plan: Design,
     single: Design,
-    threshold: float,
+    thresholds: dict[str, float],
     threshold_source: str,
+    dependence: Dependence | None,
+    contrast: dict[str, float],
+    label_persistence: float,
 ) -> dict[str, Any]:
-    gap = threshold - 0.5
+    best = pooled[0]
+    gap = thresholds[best.key] - 0.5
     return {
         "symbol": symbol,
         "timeframe": interval.value,
@@ -1233,9 +1293,37 @@ def _validate_payload(
             ],
         },
         "break_even": {
-            "accuracy": threshold,
+            "closest_model": best.key,
+            "accuracy": thresholds[best.key],
             "edge_required": gap,
             "source": threshold_source,
+            # Kept so a reader can see what the shared-assumption figure would have been,
+            # which is what this project published before turnover was measured.
+            "at_assumed_flip_rate": _break_even_at_assumed(thresholds, pooled),
+        },
+        # What ADR-012 sec. 2 argues from: the features carry the dependence, the
+        # outcome does not, and the gap between them is why the naive standard error
+        # survived.
+        "serial_dependence_contrast": {
+            "label": label_persistence,
+            "most_autocorrelated_features": dict(
+                sorted(contrast.items(), key=lambda kv: -abs(kv[1]))[:5]
+            ),
+            "least_autocorrelated_features": dict(
+                sorted(contrast.items(), key=lambda kv: abs(kv[1]))[:3]
+            ),
+        },
+        "dependence": None
+        if dependence is None
+        else {
+            "n": dependence.n,
+            "lag_one_autocorrelation": dependence.lag_one,
+            "block_lengths": list(dependence.blocks),
+            "naive_standard_error": dependence.naive_standard_error,
+            "bootstrap_standard_error": dependence.bootstrap_standard_error,
+            "inflation": dependence.inflation,
+            "effective_sample": dependence.effective_sample,
+            "material": dependence.material,
         },
         "power": {
             "walk_forward_mde": plan.minimum_detectable_effect,
@@ -1252,7 +1340,11 @@ def _validate_payload(
                 "accuracy": entry.accuracy,
                 "baseline_accuracy": entry.baseline_accuracy,
                 "edge": entry.edge,
-                "clears_break_even": entry.accuracy >= threshold,
+                "flip_rate": entry.flip_rate,
+                "prediction_persistence": entry.persistence,
+                "bars_held": bars_held(entry.flip_rate),
+                "break_even": thresholds[entry.key],
+                "clears_break_even": entry.accuracy >= thresholds[entry.key],
                 "folds": [
                     {
                         "fold": fold.number,
@@ -1267,6 +1359,39 @@ def _validate_payload(
             for entry in pooled
         ],
     }
+
+
+def _break_even_at_assumed(thresholds: dict[str, float], pooled: list[PooledScore]) -> float:
+    """The single shared threshold this project published before turnover was measured.
+
+    Kept in the payload so the correction is visible rather than silent: a reader
+    comparing this run against an earlier one needs to see 53.49% and the per-model
+    figures side by side. `p = 0.5 + f*c/(2*E|r|)` is linear in f, so it rescales from
+    any model's own threshold instead of recomputing the spread summary.
+    """
+    best = pooled[0]
+    return 0.5 + (thresholds[best.key] - 0.5) * (DEFAULT_FLIP_RATE / best.flip_rate)
+
+
+def _break_even_at(bars: pd.DataFrame, rate: float) -> float:
+    """The accuracy that pays for a strategy turning over at ``rate``.
+
+    Separate from `_break_even_for`, which answers the question `train` asks - what does
+    a generic strategy need - because that one has no prediction series to measure
+    turnover from. Where predictions exist, assuming the rate is exactly the defect
+    ADR-012 records.
+    """
+    if "spread" not in bars.columns:
+        # `p = 0.5 + f*c/(2*E|r|)` is linear in f, so the assumed threshold - which is
+        # quoted at f = 0.5 - rescales exactly rather than needing to be recomputed.
+        return 0.5 + (FALLBACK_BREAK_EVEN - 0.5) * (rate / DEFAULT_FLIP_RATE)
+    try:
+        summary = summarise_spread(bars)
+        return break_even(
+            summary.median_bps, summary.mean_absolute_return_bps, flip_rate=rate
+        ).accuracy
+    except ForecastLabError:
+        return FALLBACK_BREAK_EVEN
 
 
 def _break_even_for(bars: pd.DataFrame) -> tuple[float, str]:

@@ -1,9 +1,10 @@
 # STATUS 2026-08-27 - Scored on the whole history, with the power to say what that means
 
 - **Question:** across nine years rather than one block, does any model clear the accuracy that pays for its own costs? And could this design have seen such an edge if it existed?
-- **Verdict:** **No, and yes.** The best of six models scores **51.23%** pooled over 40,587 bars against a **53.49%** break-even - short by **2.26 points**. The design resolves **0.62%** at 80% power and would detect a profitable edge essentially every time, so the negative result is a finding rather than a failure to look. A nominally significant edge of **+0.97%** over the constant predictor does appear, survives a Holm correction, and is shown in section 4 to be mostly an artefact of the baseline moving.
+- **Verdict:** **No, and yes.** The best of six models scores **51.23%** pooled over 40,587 bars against a **53.49%** break-even - short by **2.26 points** *(at an assumed turnover; the measured shortfall is 0.46 for the closest model - see the correction note below)*. The design resolves **0.62%** at 80% power and would detect a profitable edge essentially every time, so the negative result is a finding rather than a failure to look. A nominally significant edge of **+0.97%** over the constant predictor does appear, survives a Holm correction, and is shown in section 4 to be mostly an artefact of the baseline moving.
 - **Command:** `forecast-lab validate --target XAUUSD --timeframe 1H`
-- **Machine-readable output:** [walk-forward-canonical.json](walk-forward-canonical.json)
+- **Machine-readable output:** [walk-forward-canonical.json](walk-forward-canonical.json) - *regenerated 2026-08-28 with per-model break-evens, so it carries the corrected figures rather than the ones below.*
+- **Corrected by [STATUS 2026-08-28](STATUS-2026-08-turnover.md).** Every break-even quoted here assumes a turnover of 0.5 flips per bar. Measured, no model trades that often, and the shortfall of the closest is **0.46 points rather than 2.26**. The verdict is unchanged; the margins below are all too generous. Kept as published.
 - **Inputs:** `raw/*.csv` (Dukascopy, 2018-01 to 2026-08), hashed in [data-manifest.json](data-manifest.json). 50,948 rows x 19 columns, focus mode.
 
 ## 1. The headline
@@ -79,14 +80,14 @@ And it is still not a strategy, for three reasons stated in order of weight:
 
 1. **It is a quarter of what costs demand.** 0.97 against 3.49 points. No amount of statistical significance closes a factor of 3.6.
 2. **Section 4 shows most of it is the baseline moving**, not the models predicting.
-3. **The standard error is optimistic by an unmeasured amount.** `SE = 0.5/sqrt(n)` assumes independent bars; overlapping feature windows make neighbours dependent, so the effective sample is smaller than 40,587. The correction is a stationary bootstrap and it belongs with the significance battery. **100% power must not be read literally until it exists.**
+3. ~~**The standard error is optimistic by an unmeasured amount.**~~ **Measured 2026-08-28: it is not.** The stationary bootstrap puts the inflation at **0.97** - the correctness series autocorrelates at -0.020 even though RSI does at +0.93 - so `0.5/sqrt(n)` was already honest and 100% power is literal. The reasoning here was sound and its conclusion did not follow; [STATUS 2026-08-28](STATUS-2026-08-turnover.md) sec. 3 has the measurement.
 
 Point 1 is arithmetic and survives every caveat attached to points 2 and 3.
 
 ## 6. What this run does not settle
 
 - **PCA representations were not scored across folds.** Six models on raw features, not eighteen configurations. PCA lost every single-split run and fitting it per fold per model triples the runtime; recorded as a debt in [ADR-011](../adr/ADR-011-power-before-verdict.md), not an oversight.
-- **The dependence correction is owed**, per point 3 above.
+- ~~The dependence correction is owed~~ - **discharged**, per point 3 above.
 - **The gap benchmark is still owed.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face - but those are precisely the hours that pay overnight financing. Until the swap is modelled, that stays a measurement rather than a strategy.
 - **Nothing here rules out a lower frequency.** The break-even scales with how often the position turns over; a strategy holding twenty bars faces roughly a fifth of this bar. This project tested the hourly one.
 

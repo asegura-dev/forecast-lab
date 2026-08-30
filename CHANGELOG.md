@@ -2,6 +2,32 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-28 - Two assumed parameters, measured, in opposite directions
+
+This repository exists to correct an analysis that assumed things. Two of its own numbers were still assumed, in the two modules built to stop exactly that.
+
+### Added
+
+- **[ADR-012](docs/adr/ADR-012-turnover-and-dependence-are-measured.md), `research/dependence.py` and `flip_rate()`** - a stationary bootstrap for serial dependence (via `arch`, added as a dependency), and turnover measured from a model's own predictions inside folds.
+- **`validate` gives every model the break-even ITS OWN turnover implies**, with `flip`, `held` and `break-even` beside every accuracy, and reports the dependence measurement in place of the caveat it used to print.
+- **[STATUS 2026-08-28](docs/status/STATUS-2026-08-turnover.md)** with the regenerated sidecar.
+
+### Changed
+
+- **Turnover was assumed at 0.5 flips per bar; measured it is 17.6% to 38.4%.** [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) sec. 2 asserted that "every model measured here" has no persistence. It was never measured and it is false: predictions autocorrelate at +0.22 to +0.61. Every published break-even was quoted at a frequency none of these models trades at.
+- **The margin collapses and the verdict survives.** The best case goes from *"short by 2.26 points"* to **short by 0.46 - 1.86 standard errors**. Still a rejection at a one-sided 5% test, and a thin one at the median spread; comfortable at the mean (2.56 sigma) and the 95th percentile (6.46 sigma).
+- **The ordering inverts.** By accuracy HistGradientBoosting wins and Naive Bayes is fifth. By whether it pays for itself, Naive Bayes is closest by a full point, because it holds each position 5.7 bars instead of 2.6. Ranking by accuracy was ranking by the wrong criterion.
+
+### Fixed
+
+- **The dependence caveat [ADR-011](docs/adr/ADR-011-power-before-verdict.md) attached to every power figure was wrong.** Measured inflation: **0.97**. The features are as dependent as feared - RSI-14 at +0.93, realised volatility at +0.99 - but the series being averaged is not a feature. Model correctness autocorrelates at **-0.020**, because the label does too. `0.5/sqrt(n)` was already honest, so 100% power is literal and the corrected figure moves the shortfall to 1.91 standard errors rather than 1.86.
+- **A test name collided with an existing one** and would have silently shadowed it. Caught by ruff, not by review.
+
+### Noted
+
+- **Neither defect was caught by reading.** One clause was phrased as a measurement and one caveat as rigour; both survived being written, reviewed and published, and neither survived being computed. The instrument's ability to find dependence that *is* there is pinned by a test - 3.64x inflation on a synthetic AR(1) - so the null is falsifiable rather than merely convenient.
+- **The escape route ADR-010 named is narrower than it looked.** It offered "a trend follower holding twenty bars pays a fifth as much". These models already hold up to 5.7 bars and already take part of that discount. The room left is between 5.7 bars and twenty.
+
 ## 2026-08-27 - Power, walk-forward, and the trap in a positive result
 
 The calculation that decides whether four separate "no model beats its baseline" statements meant anything. Without it, a negative result is indistinguishable from an experiment too small to see.

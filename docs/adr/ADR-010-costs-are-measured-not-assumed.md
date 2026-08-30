@@ -33,7 +33,9 @@ The mean absolute hourly move is **13.35 bps**, so the median round trip is **14
 
 with `c` the round trip, `E|r|` the mean absolute return per bar, and `f` the share of bars where the position changes.
 
-*Why:* a break-even quoted without its flip rate is unfalsifiable. At `f = 0.5` - which is what a model with no persistence produces, and every model measured here qualifies - it reduces to `0.5 + c / (4 * E|r|)`. A trend follower holding for twenty bars pays a fifth as much and faces a much lower bar. That is a real escape route from this verdict and it is named rather than hidden: **nothing here rules out a lower-frequency strategy**, only the hourly one that was tested.
+*Why:* a break-even quoted without its flip rate is unfalsifiable. At `f = 0.5` - what a model with no persistence produces - it reduces to `0.5 + c / (4 * E|r|)`.
+
+> **Corrected 2026-08-28 ([ADR-012](ADR-012-turnover-and-dependence-are-measured.md)).** This section originally continued *"...and every model measured here qualifies"*. **That clause was never measured and it is false.** Predictions autocorrelate at +0.22 to +0.61 and flip rates run 17.6% to 38.4%, so every break-even below is quoted at a turnover none of these models has. The figures are kept as published - they remain correct *at f = 0.5* - and the per-model thresholds now live in `validate`. The practical effect: the best case is short by **0.46 points**, not the 2.26 this ADR's numbers imply. A trend follower holding for twenty bars pays a fifth as much and faces a much lower bar. That is a real escape route from this verdict and it is named rather than hidden: **nothing here rules out a lower-frequency strategy**, only the hourly one that was tested.
 
 ### 3. Impossible thresholds raise rather than report
 
@@ -50,6 +52,8 @@ The reference exports carry no spread column - their venue never published one -
 ## Consequences
 
 **A number quoted sixteen times across eleven files changes meaning.** 51.92% is not deleted - it is still the correct break-even *under a 1 bp assumption*, and it is what applies to the reference dataset. What changes is that it stops being **the** threshold and becomes the optimistic end of a range whose measured middle is 53.49%. Every place that quoted it as fact now quotes both.
+
+**The flip rate was assumed in the one module built to stop assuming.** Recorded here rather than only in [ADR-012](ADR-012-turnover-and-dependence-are-measured.md), because an ADR that gets its own thesis wrong should say so where the wrong number is quoted.
 
 **The gap finding gets harder, not easier.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face. But those are precisely the hours that pay overnight financing, and the swap on long gold is negative and triples on Wednesdays. This module does not model it yet, and until it does, that finding stays a measurement rather than a strategy.
 

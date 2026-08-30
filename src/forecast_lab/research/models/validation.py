@@ -32,8 +32,12 @@ moved because the thing it is measured against moved.** Reporting the edge alone
 have made a measurement artefact look like a finding - which is the failure this whole
 repository is a correction of - so both terms are carried on every row.
 
-None of it changes the verdict, because the verdict is arithmetic rather than statistical:
-the best edge is 0.97 points and the venue's measured costs demand 3.49.
+None of it changes the verdict. What *does* change its margin is turnover: each model's
+break-even depends on how often it actually changes position, and these models are
+persistent rather than the coin flips `costs` had assumed. `flip_rate` measures it, so
+a pooled score carries the threshold it personally has to clear - 51.23% for Naive
+Bayes holding 5.7 bars, 52.67% for the trees - instead of one global 53.49% that fits
+none of them.
 """
 
 from __future__ import annotations
@@ -43,6 +47,8 @@ from dataclasses import dataclass
 import pandas as pd
 
 from forecast_lab.contracts import ForecastLabError
+from forecast_lab.research.costs import flip_rate
+from forecast_lab.research.dependence import lag_one_autocorrelation
 from forecast_lab.research.models.catalogue import ModelSpec
 from forecast_lab.research.models.training import fit_and_predict
 from forecast_lab.research.walkforward import WalkForward
@@ -60,6 +66,12 @@ class FoldScore:
     n: int
     accuracy: float
     baseline_accuracy: float
+    #: Predictions and hits for this fold, in bar order. Kept rather than reduced to a
+    #: mean because turnover and serial dependence are properties of the *sequence*: a
+    #: flip rate cannot be recovered from an accuracy, and averaging first would have
+    #: hidden the fact that these models hold positions for several bars.
+    predictions: tuple[float, ...] = ()
+    correct: tuple[float, ...] = ()
 
     @property
     def edge(self) -> float:
@@ -105,6 +117,35 @@ class PooledScore:
     @property
     def best_fold(self) -> float:
         return max(f.accuracy for f in self.folds)
+
+    @property
+    def prediction_segments(self) -> tuple[tuple[float, ...], ...]:
+        """One contiguous stretch per fold - never concatenated across a boundary."""
+        return tuple(fold.predictions for fold in self.folds)
+
+    @property
+    def correct_segments(self) -> tuple[tuple[float, ...], ...]:
+        return tuple(fold.correct for fold in self.folds)
+
+    @property
+    def flip_rate(self) -> float:
+        """How often this model changes position, measured inside folds.
+
+        The parameter every break-even in this project had been assuming at 0.5. These
+        models are persistent, so their real thresholds are lower and the verdict's
+        margin is thinner than what was published.
+        """
+        return flip_rate(self.prediction_segments)
+
+    @property
+    def persistence(self) -> float:
+        """Lag-one autocorrelation of the predictions - the flip rate's other face.
+
+        ADR-010 claimed this was "indistinguishable from zero" for every model here
+        without measuring it. It runs +0.22 to +0.61, which is why the flip rates are
+        nowhere near a half and why every break-even quoted before ADR-012 was too high.
+        """
+        return lag_one_autocorrelation(self.prediction_segments)
 
 
 def score_walk_forward(
@@ -156,6 +197,8 @@ def score_walk_forward(
                 n=int(actual.size),
                 accuracy=float((predicted == actual).mean()),
                 baseline_accuracy=float((actual == majority).mean()),
+                predictions=tuple(predicted.astype(float)),
+                correct=tuple((predicted == actual).astype(float)),
             )
         )
 

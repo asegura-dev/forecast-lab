@@ -31,6 +31,7 @@ dependencies = [
     "lightgbm==4.6.0",
     "xgboost==3.0.5",
     "matplotlib>=3.8",
+    "arch>=8.0.0",
 ]
 
 # The composition root: the only place allowed to import concrete adapters and to

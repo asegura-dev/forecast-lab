@@ -160,17 +160,18 @@ uv run forecast-lab validate --target XAUUSD --timeframe 1H --json
 uv run forecast-lab validate --target XAUUSD --timeframe 1H --folds 8 --rolling
 ```
 
-Six estimators x five folds, about thirty seconds. It needs the canonical data (`data/raw`, the default here) - the reference exports are too short to cut into useful folds and carry no spread, so the break-even falls back to the assumed 1 bp and the command says so.
+Six estimators x five folds, about forty seconds - the extra time is the bootstrap. It needs the canonical data (`data/raw`, the default here) - the reference exports are too short to cut into useful folds and carry no spread, so the break-even falls back to the assumed 1 bp and the command says so.
 
 **Reading the output.** Three parts, in the order the argument runs:
 
 - **The fold table** shows each train/test pair with the months it covers. Every training block ends before its test block begins; the purged bars in the line above it are the ones removed at each boundary because a label there reaches into the test window.
-- **The pooled table** is the result. Read `accuracy` and `baseline` *together*, never `edge` alone - which is the whole point of the paragraph the command prints underneath it. Under walk-forward every model's edge turns positive, and that is **not** the models improving: accuracy falls 0.21 points against the single split while the baseline falls 0.67, because averaging five stretches of history moves the majority class nearer a half. `vs break-even` is the column that decides anything.
+- **The pooled table** is the result, and it carries two different tests. Read `accuracy` and `baseline` *together*, never `edge` alone: under walk-forward every model's edge turns positive, and that is **not** the models improving - accuracy falls 0.21 points against the single split while the baseline falls 0.67, because averaging five stretches moves the majority class nearer a half. Then read `short by`, which is the other test: whether the model pays for its own trading.
+- **`flip` and `held` are why the break-even column differs per row.** A model that changes position every 5.7 bars crosses the spread half as often as one changing every 2.6, and faces a threshold more than a point lower. The rows are sorted by `short by`, not by accuracy - the two orderings are different, which is the point of [ADR-012](../adr/ADR-012-turnover-and-dependence-are-measured.md).
 - **The power lines** state the minimum detectable effect over the bars actually scored, and how often this design would see an edge large enough to pay for costs. Expect `0.62%` and `100.0%`.
 
-Expect the run to put **HistGradientBoosting** at 51.23% against a 53.49% break-even - short by 2.26 points, with no model of six closer. [STATUS 2026-08-27](../status/STATUS-2026-08-walk-forward.md) works through what that does and does not establish.
+Expect the run to put **Naive Bayes** closest, at 50.77% against its own 51.23% break-even - short by 0.46 points, 1.86 standard errors, with no model of six closer. Note that it is *fifth* by accuracy: HistGradientBoosting scores 51.23% and still falls further short, because it trades twice as often. [STATUS 2026-08-28](../status/STATUS-2026-08-turnover.md) works through what that does and does not establish.
 
-**Read the last paragraph the command prints.** It says the power figures assume independent bars and that overlapping feature windows break that assumption, so 100% is optimistic by an unmeasured factor. That caveat is not decoration: it is the one part of this output that is not yet nailed down, and it stays there until the stationary bootstrap exists.
+**Read the last line the command prints.** It reports the serial dependence measured by a stationary bootstrap - expect an inflation around `0.97x`, meaning the standard errors above are already honest. Earlier versions of this project printed a caveat there instead, asserting the figures were optimistic by an unmeasured factor. They were not, and measuring it is what settled that.
 
 **`--rolling` answers a different question.** The default expanding window trains on all history to date, which is what a deployment would have. A fixed-length rolling window asks whether recent history predicts better than distant - a hypothesis about regime change rather than a validation design. Use it to explore, not to report.
 
@@ -215,10 +216,10 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 ## 11. What is not built yet
 
-`validate` is where the pipeline currently stops, and it now produces a verdict rather than a number: 2.26 points short of paying for costs, measured over 40,587 bars by a design that resolves 0.62.
+`validate` is where the pipeline currently stops, and it now produces a verdict rather than a number: the closest model is **0.46 points** short of paying for its own turnover, measured over 40,587 bars by a design that resolves 0.62.
 
 Three things are still owed, each named in [ADR-011](../adr/ADR-011-power-before-verdict.md):
 
-- **The significance battery** - Romano-Wolf and Hansen SPA for having scored many configurations, and the **stationary bootstrap** that corrects a standard error currently assuming independent bars. Until it exists, treat every power figure here as optimistic.
+- **The significance battery** - Romano-Wolf and Hansen SPA, for having scored many configurations. (The stationary bootstrap that was owed alongside them has been run; the dependence it was meant to correct turned out not to be there.)
 - **The gap benchmark.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face - but those are exactly the hours that pay overnight financing. Until the swap is modelled, it stays a measurement rather than a strategy.
 - **The dashboard** ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md), still Plan).

@@ -15,8 +15,10 @@ from forecast_lab.research import (
     ASSUMED_ROUND_TRIP_BPS,
     BreakEven,
     CostError,
+    bars_held,
     break_even,
     break_even_table,
+    flip_rate,
     net_of_costs,
     summarise_spread,
 )
@@ -201,3 +203,80 @@ def test_costs_can_turn_a_winning_gross_return_into_a_losing_net_one() -> None:
 
     assert gross > 0
     assert net < 0
+
+
+# --- turnover: the parameter this module assumed for a week ---------------------------
+
+
+@pytest.mark.unit
+def test_a_coin_flip_changes_its_mind_half_the_time() -> None:
+    """The default, checked against the thing it claims to describe."""
+    rng = np.random.default_rng(0)
+    flips = (rng.random(50_000) < 0.5).astype(float)
+
+    assert flip_rate([flips]) == pytest.approx(0.5, abs=0.01)
+
+
+@pytest.mark.unit
+def test_a_constant_prediction_never_pays_a_spread() -> None:
+    assert flip_rate([[1.0] * 100]) == 0.0
+
+
+@pytest.mark.unit
+def test_turnover_is_never_counted_across_a_fold_boundary() -> None:
+    """The last bar of one fold and the first of the next are years apart.
+
+    Charging a round trip between them would invent a trade the strategy never made. Two
+    constant segments that differ from each other have zero real turnover.
+    """
+    assert flip_rate([[1.0] * 50, [0.0] * 50]) == 0.0
+    # And a genuine alternation inside one segment is counted in full.
+    assert flip_rate([[0.0, 1.0] * 25]) == pytest.approx(1.0)
+
+
+@pytest.mark.unit
+def test_the_measured_flip_rate_lowers_the_bar_a_model_has_to_clear() -> None:
+    """The defect ADR-012 records, in one assertion.
+
+    Every published break-even used `f = 0.5` on the stated grounds that these models have
+    no persistence. Measured, Naive Bayes flips 17.6% of the time - it holds 5.7 bars -
+    and its real threshold is 51.23%, not 53.49%. The verdict survives; its margin does
+    not.
+    """
+    assumed = break_even(1.86, 13.35, flip_rate=0.5).accuracy
+    measured = break_even(1.86, 13.35, flip_rate=0.1761).accuracy
+
+    assert assumed == pytest.approx(0.5349, abs=0.0001)
+    assert measured == pytest.approx(0.5123, abs=0.0001)
+    # Naive Bayes scored 50.77%: short of both, but by 0.46 points rather than 2.72.
+    assert assumed - 0.5077 == pytest.approx(0.0272, abs=0.0002)
+    assert measured - 0.5077 == pytest.approx(0.0046, abs=0.0002)
+
+
+@pytest.mark.unit
+def test_break_even_is_linear_in_the_flip_rate() -> None:
+    """Relied on by the CLI, which rescales the assumed threshold rather than recomputing."""
+    half = break_even(1.86, 13.35, flip_rate=0.5).accuracy
+    quarter = break_even(1.86, 13.35, flip_rate=0.25).accuracy
+
+    assert (quarter - 0.5) == pytest.approx((half - 0.5) / 2)
+
+
+@pytest.mark.unit
+def test_bars_held_is_the_readable_form_of_the_flip_rate() -> None:
+    assert bars_held(0.5) == pytest.approx(2.0)
+    assert bars_held(0.1761) == pytest.approx(5.7, abs=0.05)
+
+
+@pytest.mark.unit
+def test_turnover_without_two_consecutive_predictions_is_refused() -> None:
+    with pytest.raises(CostError, match="at least two consecutive"):
+        flip_rate([[1.0]])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("rate", [0.0, -0.1, 1.5])
+def test_bars_held_refuses_an_impossible_flip_rate(rate: float) -> None:
+    """Named apart from the `break_even` refusal above: same guard, different caller."""
+    with pytest.raises(CostError, match="flip rate must be"):
+        bars_held(rate)

@@ -18,9 +18,28 @@ trip on each flip and captures the move otherwise. Setting expected profit to ze
     p = 0.5 + f * c / (2 * E|r|)
 
 with `c` the round-trip cost, `E|r|` the mean absolute return per bar, and `f` the share
-of bars on which the position changes. At `f = 0.5` - a model with no persistence, which
-is what a coin flip and every model measured here produce - it reduces to
-`0.5 + c / (4 * E|r|)`.
+of bars on which the position changes. At `f = 0.5` - a model with no persistence - it
+reduces to `0.5 + c / (4 * E|r|)`.
+
+**And `f = 0.5` is wrong for every model this project fits.** An earlier version of this
+module asserted the opposite: that their predictions autocorrelate at essentially zero,
+so half a flip per bar was the right constant. It was never measured. Measured, the
+predictions are persistent - lag-one autocorrelation runs from **+0.22** for the trees to
+**+0.61** for Naive Bayes - and the flip rates that follow are far below a half:
+
+| Model | Flip rate | Bars held | Break-even at `f=0.5` | Break-even measured |
+|---|---:|---:|---:|---:|
+| Naive Bayes | **17.6%** | 5.7 | 53.48% | **51.23%** |
+| Logistic Regression | 26.9% | 3.7 | 53.48% | 51.87% |
+| HistGradientBoosting | 38.4% | 2.6 | 53.48% | 52.67% |
+
+Assuming a parameter in the one module built to stop this project assuming things is the
+defect worth recording loudest. It made the verdict look far safer than it is: the best
+model was published as falling **2.26 points** short of paying for itself, and against its
+own turnover it falls **1.44** short. The closest, Naive Bayes, misses by **0.46 points -
+1.84 standard errors**, which is a near miss rather than a rout. The conclusion survives;
+its margin does not. `flip_rate()` measures it, and nothing should call `break_even()`
+with the default when a prediction series is available.
 
 **What this module does not model yet**, and each one raises the bar rather than lowering
 it: slippage beyond the quoted spread, the rollover surcharge, and the overnight swap
@@ -31,18 +50,21 @@ those are precisely the hours financing is charged.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from numpy.typing import ArrayLike
 
 from forecast_lab.contracts import ForecastLabError
 
-#: Position changes per bar for a model with no persistence. A predictor whose output is
-#: independent from bar to bar flips half the time, which is what every model measured in
-#: this project does - their autocorrelation of predictions is indistinguishable from
-#: zero. A trend follower would sit lower and pay less; that is a parameter, not a
-#: constant, and it is exposed as one.
+#: Position changes per bar for a predictor with no persistence - a coin flip changes its
+#: mind half the time. It is the conservative default and the WRONG one for every model
+#: measured here, all of which are persistent (see the module docstring). Kept as the
+#: default only because a break-even computed without a prediction series has to assume
+#: something, and assuming the expensive case is the safe direction to be wrong in.
+#: Whenever predictions exist, pass `flip_rate=flip_rate(predictions)` instead.
 DEFAULT_FLIP_RATE = 0.5
 
 #: Cost assumed by the planning analysis, kept so the two can be compared in one table.
@@ -192,3 +214,41 @@ def net_of_costs(
     turnover = aligned.diff().abs().fillna(abs(aligned.iloc[0]) if len(aligned) else 0.0)
     charged = turnover / 2.0 * (round_trip_bps / 10_000)
     return gross - charged
+
+
+def flip_rate(segments: Sequence[ArrayLike]) -> float:
+    """The share of bars on which a prediction series changes its mind.
+
+    ``segments`` are contiguous stretches of predictions - one per walk-forward fold. A
+    change is only counted **inside** a segment: the last bar of 2020 and the first bar of
+    2022 are not consecutive, and charging a round trip between them would invent turnover
+    the strategy never had.
+
+    This is the parameter `break_even()` had been assuming. Measured on the canonical
+    series it runs from 17.6% (Naive Bayes, holding 5.7 bars) to 38.4% (the trees), never
+    the 0.5 the module defaulted to - so every published break-even was too high and every
+    verdict looked safer than it was.
+    """
+    changes = 0
+    pairs = 0
+    for segment in segments:
+        array = np.asarray(segment, dtype=float)
+        if array.size < 2:
+            continue
+        changes += int((array[1:] != array[:-1]).sum())
+        pairs += int(array.size - 1)
+    if pairs == 0:
+        raise CostError("a flip rate needs at least two consecutive predictions")
+    return changes / pairs
+
+
+def bars_held(rate: float) -> float:
+    """Average bars a position survives at a given flip rate - the readable form of `f`.
+
+    17.6% is hard to picture; "changes position every 5.7 bars" is not, and it is what
+    makes the frequency argument concrete for a reader deciding whether the hourly
+    horizon was the right one to test.
+    """
+    if not 0 < rate <= 1:
+        raise CostError(f"the flip rate must be in (0, 1], got {rate}")
+    return 1.0 / rate
