@@ -4,6 +4,8 @@
 
 > Re-engineering of a postgraduate project (MSc in Data Science and Engineering, CUCEI, University of Guadalajara, 2025), originally carried out as a team notebook. See [Origin and scope](#origin-and-scope-of-the-re-analysis).
 
+**→ [FINDINGS](FINDINGS.md) - the answer, in one place.** What was established, what was not, and what would change it.
+
 ---
 
 ## The finding that started this
@@ -98,7 +100,7 @@ Before modelling, two numbers are computed and pre-registered:
 | Single split, canonical data | 7,306 | 1.45% | 100.0% |
 | **Walk-forward, canonical data** | **40,587** | **0.62%** | **100.0%** |
 
-**This table reversed an argument this project made for a week.** The claim was that a single split "cannot resolve the effect it exists to test" - a 2.17-point detection floor sitting above the 1.92 points a strategy would need. That was true against an *assumed* 1 bp round trip. Measured at the venue, costs demand **3.49 points**, and every design here sees that comfortably: detecting a profitable edge needs **1,268 bars** and there are 40,587. The verdict is therefore not *"we could not see"* but **"we looked with power to spare and there was nothing"** ([ADR-011](docs/adr/ADR-011-power-before-verdict.md)).
+**This table reversed an argument this project made for a week.** The claim was that a single split "cannot resolve the effect it exists to test" - a 2.17-point detection floor sitting above the 1.92 points a strategy would need. That was true against an *assumed* 1 bp round trip. Measured at the venue, costs demand more than that, and every design here sees it comfortably. At the shared threshold this project first used, detecting a profitable edge needed 1,268 bars; against the **1.23 points** the closest model actually has to clear once its own turnover is measured, it needs **10,216** - and there are 40,587 either way. The verdict is therefore not *"we could not see"* but **"we looked with power to spare"** ([ADR-011](docs/adr/ADR-011-power-before-verdict.md), [ADR-012](docs/adr/ADR-012-turnover-and-dependence-are-measured.md)).
 
 What stays optimistic, named rather than buried: the standard error assumes independent bars, while overlapping feature windows make neighbours dependent. **100% power must not be read literally** until a stationary bootstrap corrects it. The conclusion does not rest on it - 0.97 against 3.49 points is arithmetic, not inference.
 
@@ -190,6 +192,7 @@ Written as a research book: each document exists because a decision was made, an
 
 | | |
 |---|---|
+| [**FINDINGS**](FINDINGS.md) | **The answer**: what the project establishes, what it does not, and what would change it |
 | [Documentation index](docs/INDEX.md) | One line per file - find the right document without opening it |
 | [RUNBOOK](docs/guides/RUNBOOK-getting-started.md) | **Start here to run it**: fresh clone to feature matrix, and what to do when a step fails |
 | [Engineering conventions](docs/guides/engineering-conventions.md) | The rules, and why each exists |

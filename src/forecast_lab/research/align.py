@@ -5,7 +5,7 @@ what went wrong before stating what is done instead.
 
 The original pipeline merged every symbol with an outer join and forward-filled the
 result. That produces a row at every timestamp *any* symbol traded - including the
-1,251 hours when the currencies were open and gold was not. On those rows gold's close
+1,250 hours when the currencies were open and gold was not. On those rows gold's close
 is a copy of the previous bar, so ``close[t+1] > close[t]`` compares a price with
 itself, returns False, and manufactures a DOWN label out of nothing. Measured on the
 real exports, the damage is not subtle: it turns 1,288 bars into exact ties, and flips

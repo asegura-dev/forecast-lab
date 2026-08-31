@@ -23,7 +23,7 @@
 | Canonical, single split | 7,306 | 1.45% | 100.0% |
 | **Canonical, walk-forward** | **40,587** | **0.62%** | **100.0%** |
 
-Detecting a profitable edge needs **1,268 bars**. There are 40,587. The verdict therefore changes from *"we could not see"* to **"we looked with power to spare and there was nothing"** - which is a result rather than a shrug. It does not rule out an edge of half a point; it rules out one worth having, which is the only kind the question was ever about.
+Detecting a profitable edge needs **1,268 bars**. There are 40,587. *(At the 3.49-point threshold this ADR assumes. [ADR-012](ADR-012-turnover-and-dependence-are-measured.md) measures turnover per model and lowers the threshold to 1.23 points for the closest, which needs 10,216 bars - still a quarter of what is available, so the conclusion holds.)* The verdict therefore changes from *"we could not see"* to **"we looked with power to spare and there was nothing"** - which is a result rather than a shrug. It does not rule out an edge of half a point; it rules out one worth having, which is the only kind the question was ever about.
 
 **Trade-off:** this makes the negative result *stronger*, and a reader is entitled to suspect a calculation that flatters its author's conclusion. The defence is that the same module, run a week earlier against the assumed cost, produced the opposite reading and it was published anyway. The input that changed is ADR-010's measurement, not this arithmetic.
 

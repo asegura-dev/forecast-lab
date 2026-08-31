@@ -19,9 +19,13 @@ and every design here sees it easily:
 | Canonical, single split | 7,306 | 1.45% | **100.0%** |
 | Canonical, walk-forward | 40,587 | 0.62% | 100.0% |
 
-Only **1,268 bars** are needed to detect a profitable edge at 80% power. The walk-forward
-design scores 40,587. (1,268 rather than 1,269 because the break-even is 53.4927% before
-rounding, so the effect is fractionally larger than the 3.49 points quoted everywhere.)
+Only **1,268 bars** are needed to detect a profitable edge at 80% power, against a
+break-even of 53.49%. That threshold assumed a turnover no model here has; measured per
+model (ADR-012) the closest needs 1.23 points, which takes **10,216 bars**. The
+walk-forward design scores 40,587, so both readings clear comfortably.
+
+(1,268 rather than 1,269 because the break-even is 53.4927% before rounding, so the
+effect is fractionally larger than the 3.49 points quoted everywhere.)
 
 That converts the verdict from "we could not see" into **"we looked with power to spare
 and there was nothing"** - which is a result rather than a shrug. It still does not rule

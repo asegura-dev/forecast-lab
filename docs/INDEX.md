@@ -4,6 +4,12 @@ The reference for finding the right document **without opening it**. One line pe
 
 Only files that exist today are listed. The book grows one line at a time, as each piece lands.
 
+## The answer
+
+| File | What's in it |
+|------|--------------|
+| [FINDINGS](../FINDINGS.md) | The verdict in one place, for a reader who should not have to assemble it from thirteen ADRs and eight STATUS logs. **A real directional edge, worth less than nothing**: 9 of 18 configurations survive Holm on Pesaran-Timmermann, 0 of 18 make money. Carries what the project does **not** establish (there *is* an edge; a lower-frequency strategy is untested; the swap is unmodelled), what would change the answer, what happened to each of the original analysis's five claims, and a list of the errors this project made and corrected. Names explicitly what was fixed before the answer was read - and what was not. |
+
 ## Decisions - ADRs (`docs/adr/`)
 
 | ADR | File | The decision |

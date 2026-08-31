@@ -314,7 +314,7 @@ def align_command(
     """Put every symbol on the target's timeline, and report what had to be carried."""
     # The correction at the centre of the re-analysis: the target's own bars are the
     # timeline, so no row exists that the target did not trade. The original pipeline
-    # outer-joined and forward-filled, which invented 1,251 gold bars and flipped which
+    # outer-joined and forward-filled, which invented 1,250 gold bars and flipped which
     # class was the majority.
     try:
         interval = Timeframe.parse(timeframe)

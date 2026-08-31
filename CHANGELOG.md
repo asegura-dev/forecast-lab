@@ -2,6 +2,18 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-31 - FINDINGS
+
+### Added
+
+- **[FINDINGS.md](FINDINGS.md)** - the verdict in one place. The two questions and their opposite answers, the numbers behind each, what the project does **not** establish, what would change the answer, what happened to each of the original analysis's five claims, and the errors this project made and corrected along the way.
+- **What was fixed before the answer was read, with the commits that prove it.** The break-even ([ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md)) and the minimum detectable effect ([ADR-011](docs/adr/ADR-011-power-before-verdict.md)) were published in `85c0d89` on 2026-08-28; the verdict ([ADR-013](docs/adr/ADR-013-skill-and-profit-are-separate-questions.md)) in `9cb292c` on 2026-08-31. Three days and two commits apart, checkable from the history rather than asserted.
+- **And what was not.** The *taxonomy of possible outcomes* was never written down in advance. The thresholds were; the list of verdicts they might produce was not, and FINDINGS says so rather than presenting the result as a pre-registered one.
+
+### Fixed
+
+- **A stale figure in four places.** "Detecting a profitable edge needs 1,268 bars" is correct against the 53.49% shared break-even and was superseded by [ADR-012](docs/adr/ADR-012-turnover-and-dependence-are-measured.md)'s per-model thresholds. Against the 1.23 points the closest model actually has to clear, the design needs **10,216 bars** - still a quarter of the 40,587 available, so the conclusion is unchanged and the arithmetic is now right. Corrected in the README and FINDINGS; left in place with a pointer where it is a historical statement.
+
 ## 2026-08-30 - A real edge, worth less than nothing
 
 The project's answer, and it needed two questions kept apart to become one.
