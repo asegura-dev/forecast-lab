@@ -21,9 +21,9 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `357 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 9).
+Expect `377 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 10).
 
-**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 10.
+**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 11.
 
 ## 2. Getting data onto disk
 
@@ -149,7 +149,7 @@ Eight PNGs, four per block. Start with `edge-<block>.png`: every configuration a
 
 **The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate, and it doubled the command's runtime: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
 
-If a model cannot be loaded, the command prints it and continues - see sec. 10 for the reason that happens on Windows.
+If a model cannot be loaded, the command prints it and continues - see sec. 11 for the reason that happens on Windows.
 
 ## 8. Scoring across the whole history
 
@@ -179,7 +179,31 @@ Expect the run to put **Naive Bayes** closest, at 50.77% against its own 51.23% 
 
 **`--rolling` answers a different question.** The default expanding window trains on all history to date, which is what a deployment would have. A fixed-length rolling window asks whether recent history predicts better than distant - a hypothesis about regime change rather than a validation design. Use it to explore, not to report.
 
-## 9. The network tests
+## 9. The verdict
+
+`validate` asks whether each model clears its costs. This asks the two questions underneath, which turn out to disagree.
+
+```
+uv run forecast-lab verdict --target XAUUSD --timeframe 1H
+uv run forecast-lab verdict --target XAUUSD --timeframe 1H --long-only
+uv run forecast-lab verdict --target XAUUSD --timeframe 1H --no-pca --json
+```
+
+Eighteen configurations, five folds and two bootstraps - about ninety seconds.
+
+**Reading the output.** Three numbered sections and a verdict:
+
+- **1. Is there skill?** Pesaran-Timmermann against *independence*, not against a coin flip. The `independent` column is what the two marginals produce with no information passing between them - a constant predictor scores exactly zero against it. The `after Holm` column is the one that counts: sixteen configurations are significant at 5% and **nine survive** the correction for having tried eighteen.
+- **2. Is it worth anything?** Strategy returns net of the venue's own spread, against a benchmark of holding the asset. Expect **0 of 18** on both counts.
+- **3. Does the best survive having been the best?** Hansen SPA, Romano-Wolf StepM, and the Deflated Sharpe. Expect p = 0.763, nothing rejected, DSR 0.0000.
+
+The verdict to expect: **a real directional edge, worth less than nothing.** Nine configurations carry a robust signal of about one point; traded, they turn buy-and-hold's +69.8% into -196.7%.
+
+**`--long-only` is the friendlier framing** - long-or-flat instead of long-or-short, so half the turnover and a wrong call merely forgoes a move instead of taking it backwards. It exists so the negative result cannot be blamed on the harsher one. It does not change the count.
+
+**What the verdict does not settle**, and the command says so on its last line: slippage, the rollover surcharge and the overnight swap are unmodelled. Each raises the bar, so they cannot rescue a negative result - but a positive one would have needed them first.
+
+## 10. The network tests
 
 Excluded from the gates so the default run is hermetic - no network, any OS, fast. They hold the venue to its side of the contract: that hourly bars still open exactly on the hour (the invariant the whole alignment design rests on), that both sides combine into a positive spread, and that every mapped instrument still exists.
 
@@ -189,7 +213,7 @@ uv run python -m pytest -m network
 
 Run them when the data source misbehaves or before trusting a fresh `fetch`.
 
-## 10. When something fails
+## 11. When something fails
 
 **`DLL load failed ... an application control policy blocked this file`** - Windows Smart App Control blocking an unsigned binary extension. Two forms:
 
@@ -210,7 +234,15 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **`No 1H series for XAUUSD in data\raw`** - you fetched into one directory and are reading from another. `fetch` writes to `data/raw`, `ingest --from <path>` writes to `data/reference`, and every command that *reads* a series takes `--dir`.
 
-**`verify` reports a mismatch** - the bytes on disk are not the bytes a published number was computed from. Either the venue revised a bar, or a file was edited. Re-fetch and re-run rather than updating the manifest to match, which would be recording the discrepancy as the truth.
+**`verify` reports a mismatch** - the bytes on disk are not the bytes a published number was computed from. Three causes, in order of likelihood:
+
+1. **You ran `fetch` again.** This is the common one and it is not a fault: the series extends forward, so a fetch a week later adds bars and changes every file's hash. It happened here on 2026-08-30, when a fetch took the sample from 51,147 bars to 51,200 and `verify` flagged all eleven files. **The published figures stay pinned to the 2026-08-26 snapshot**, which is what the committed manifest describes.
+2. **The venue revised a bar.** Rarer, and worth looking at rather than accepting.
+3. **A file was edited.** Editing one digit of one price leaves the file exactly as long and changes every number computed from it.
+
+**Do not update the manifest to match**, which records the discrepancy as the truth. To reproduce a published figure, restore the snapshot the manifest describes. To move the project forward onto newer data, regenerate the numbers *and* the manifest together, in one commit - never the manifest alone.
+
+Checked on the real case: extending the sample by 52 bars moved the count of configurations with significant skill from 9 to 13 and left the economic verdict identical at 0 of 18. That the conclusion survives a data refresh is worth knowing; that the *numbers* move is why they are pinned.
 
 **Feature counts changed and you did not change the code** - check the `ta` version. It is the only dependency pinned exactly (`ta==0.11.0`) because it changes indicator values between releases; `uv lock --upgrade` would walk past a range pin and move every published number without touching a line of ours.
 
@@ -218,12 +250,12 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **The OneDrive exports fail to read** - Files On-Demand leaves placeholder stubs on disk. Open the folder in Explorer and let it hydrate before pointing `ingest --from` at it.
 
-## 11. What is not built yet
+## 12. What is not built yet
 
-`validate` is where the pipeline currently stops, and it now produces a verdict rather than a number: the closest model is **0.46 points** short of paying for its own turnover, measured over 40,587 bars by a design that resolves 0.62.
+`verdict` is where the pipeline stops, and the research question is answered: a real directional edge, worth less than nothing. Nine of eighteen configurations survive Holm; none makes money.
 
 Three things are still owed, each named in [ADR-011](../adr/ADR-011-power-before-verdict.md):
 
-- **The significance battery** - Romano-Wolf and Hansen SPA, for having scored many configurations. (The stationary bootstrap that was owed alongside them has been run; the dependence it was meant to correct turned out not to be there.)
+- **A single `FINDINGS` document** a reader can land on instead of assembling the answer from thirteen ADRs and eight STATUS logs.
 - **The gap benchmark.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face - but those are exactly the hours that pay overnight financing. Until the swap is modelled, it stays a measurement rather than a strategy.
 - **The dashboard** ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md), still Plan).

@@ -4,7 +4,7 @@
 - **Verdict:** **The conclusion survives and its margin collapses.** Turnover was assumed at 0.5 flips per bar; measured it runs **17.6% to 38.4%**, so every published break-even was quoted at a frequency no model has. The best case goes from *"short by 2.26 points"* to **short by 0.46 - 1.86 standard errors**. Serial dependence, meanwhile, was asserted to be inflating the standard error by an unmeasured factor; measured it is **0.97**, so the naive figure was already honest. One assumption flattered the conclusion, the other undermined it, and neither was caught by reading carefully.
 - **Command:** `forecast-lab validate --target XAUUSD --timeframe 1H`
 - **Machine-readable output:** [walk-forward-canonical.json](walk-forward-canonical.json)
-- **Inputs:** `raw/*.csv` (Dukascopy, 2018-01 to 2026-08), hashed in [data-manifest.json](data-manifest.json). 50,948 rows x 19 columns, focus mode, 40,587 bars scored.
+- **Inputs:** `raw/*.csv` (Dukascopy, 2018-01 to 2026-08), hashed in [data-manifest.json](data-manifest.json). Figures are pinned to the **2026-08-26 snapshot**; `fetch` extends the series forward, so a later download changes every hash and `verify` will say so. 50,948 rows x 19 columns, focus mode, 40,587 bars scored.
 
 ## 1. The headline
 

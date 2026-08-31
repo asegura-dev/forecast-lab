@@ -252,3 +252,43 @@ def bars_held(rate: float) -> float:
     if not 0 < rate <= 1:
         raise CostError(f"the flip rate must be in (0, 1], got {rate}")
     return 1.0 / rate
+
+
+def directional_returns(
+    predictions: pd.Series,
+    realised: pd.Series,
+    *,
+    round_trip_bps: float,
+    long_only: bool = False,
+) -> pd.Series:
+    """Turn a UP/DOWN prediction series into what trading it would have earned.
+
+    ``predictions`` are 1 for UP and 0 for DOWN; ``realised`` is the return each prediction
+    was about - the move from that bar to the next, which is what the label describes. The
+    position is never sized, because sizing is a second strategy layered on the first and
+    this project is testing the first.
+
+    ``long_only`` swaps +1/-1 for +1/0. It is the friendlier framing - half the turnover,
+    so half the cost, and a wrong call merely forgoes a move instead of taking it
+    backwards - and it exists so a negative result cannot be blamed on the harsher one.
+    Measured on the canonical series, all eighteen configurations lose money under both.
+
+    Costs are charged by `net_of_costs` on every position change, so a persistent model
+    pays less - the same arithmetic that gives each model its own break-even in ADR-012,
+    arriving here in return space instead of accuracy space. The two must agree, and a
+    disagreement between them would be a defect in one of them.
+
+    **The benchmark this is compared against is always-long, never zero.** Gold rose
+    through most of this sample; a strategy measured against zero collects that and calls
+    it skill, which is scoring an accuracy without its baseline in different units.
+    """
+    aligned = predictions.reindex(realised.index).dropna()
+    if aligned.empty:
+        raise CostError("no prediction overlaps the return series")
+    short = 0.0 if long_only else -1.0
+    positions = pd.Series(
+        np.where(aligned.to_numpy(dtype=float) >= 0.5, 1.0, short), index=aligned.index
+    )
+    return net_of_costs(
+        realised.reindex(aligned.index), positions, round_trip_bps=round_trip_bps
+    )

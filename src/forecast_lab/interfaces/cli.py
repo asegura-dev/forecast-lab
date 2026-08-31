@@ -17,10 +17,12 @@ in the logging is indistinguishable from a crash in the work.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
+import numpy as np
 import pandas as pd
 import typer
 from rich.console import Console
@@ -45,8 +47,10 @@ from forecast_lab.ingest import (
 )
 from forecast_lab.ingest.importer import ImportReport
 from forecast_lab.research import (
+    ASSUMED_ROUND_TRIP_BPS,
     DEFAULT_FLIP_RATE,
     DEFAULT_FOLDS,
+    DEFAULT_REPS,
     LONGEST_WINDOW,
     PCA_VARIANCE,
     Dependence,
@@ -71,20 +75,24 @@ from forecast_lab.research import (
     correlation_comparison,
     correlation_pairs,
     count_moves,
+    deflated_sharpe,
     describe,
     design,
+    directional_returns,
     edge_chart,
     evaluate_baselines,
     evaluate_stationarity,
     feature_correlation_chart,
     feature_correlations,
     fit_and_predict,
+    holm,
     indicators,
     label_direction,
     lag_one_autocorrelation,
     measure_dependence,
     multicollinear_pairs,
     normality,
+    pesaran_timmermann,
     positive_rate,
     price_overview,
     probe_scale,
@@ -97,6 +105,7 @@ from forecast_lab.research import (
     score_model,
     score_walk_forward,
     summarise_spread,
+    superior_predictive_ability,
     temporal_split,
     variance_chart,
     walk_forward,
@@ -1425,6 +1434,406 @@ def _align_payload(
             }
             for cover in panel.coverage
         ],
+    }
+
+
+@app.command("verdict")
+def verdict_command(
+    target: Annotated[
+        str, typer.Option("--target", "-T", help="Symbol whose direction is predicted.")
+    ],
+    timeframe: Annotated[
+        str, typer.Option("--timeframe", "-t", help="Bar interval: 1H, 4H or 1D.")
+    ] = "1H",
+    horizon: Annotated[int, typer.Option("--horizon", help="Bars ahead to predict.")] = 1,
+    mode: Annotated[
+        str, typer.Option("--mode", "-m", help="focus (target only) or whole (every symbol).")
+    ] = "focus",
+    folds: Annotated[int, typer.Option("--folds", help="Walk-forward folds.")] = DEFAULT_FOLDS,
+    pca: Annotated[
+        bool, typer.Option("--pca/--no-pca", help="Include PCA representations - 18 rather than 6.")
+    ] = True,
+    long_only: Annotated[
+        bool,
+        typer.Option(
+            "--long-only/--long-short",
+            help="Long-or-flat instead of long-or-short: half the turnover, half the cost.",
+        ),
+    ] = False,
+    reps: Annotated[
+        int, typer.Option("--reps", help="Bootstrap replications for SPA and StepM.")
+    ] = DEFAULT_REPS,
+    directory: Annotated[
+        Path, typer.Option("--dir", "-d", help="Directory holding the series.")
+    ] = DEFAULT_DATA_DIR,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
+    ] = False,
+) -> None:
+    """Answer the two questions separately: is there skill, and is it worth anything.
+
+    `validate` scores accuracy against costs. This asks the harder pair - whether the
+    directional edge survives a test against independence and a correction for having
+    tried many configurations, and whether trading it beats holding the asset. Those can
+    disagree, and on this data they do.
+    """
+    try:
+        interval = Timeframe.parse(timeframe)
+        spec = SymbolSpec(name=target.upper())
+        selected = Mode(mode.lower())
+        catalogue = scan(directory)
+    except ValueError:
+        console.print(f"[red]Unknown mode {mode!r}: expected 'focus' or 'whole'.[/red]")
+        raise typer.Exit(code=2) from None
+    except (ForecastLabError, NotADirectoryError) as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=2) from None
+
+    wanted = [s for s in catalogue.series if s.timeframe is interval]
+    if not any(s.symbol == spec for s in wanted):
+        console.print(f"[red]No {interval.value} series for {spec} in {directory}.[/red]")
+        raise typer.Exit(code=1)
+
+    series = {}
+    for item in wanted:
+        frame, _ = read_series(item.path, item.symbol, item.timeframe)
+        series[item.symbol.name] = frame
+
+    try:
+        matrix = build_features(spec.name, series, interval, mode=selected)
+        close = series[spec.name]["close"]
+        labels, _ = label_direction(close, interval, horizon=horizon)
+        direction = labels["label"].where(labels["label"] != float(Direction.FLAT.value))
+        direction = direction.reindex(matrix.frame.index)
+        scheme = walk_forward(
+            pd.DatetimeIndex(matrix.frame.index), folds=folds, horizon=horizon
+        )
+        # The return each prediction was about: the move from that bar to the next, which
+        # is exactly what the label describes. Getting this shift wrong would credit a
+        # strategy with a move that had already happened when it took the position.
+        realised = np.log(close).diff().shift(-1).reindex(matrix.frame.index)
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    cost, cost_source = _round_trip_for(series[spec.name])
+    representations: list[float | None] = [None]
+    if pca:
+        representations.extend(PCA_VARIANCE)
+
+    scored: list[PooledScore] = []
+    for entry in availability():
+        if not entry.available:
+            console.print(f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]")
+            continue
+        for variance in representations:
+            try:
+                scored.append(
+                    score_walk_forward(
+                        entry.spec, matrix.frame, direction, scheme, variance=variance
+                    )
+                )
+            except ForecastLabError as exc:
+                console.print(f"[yellow]{entry.name} not scored:[/yellow] [dim]{exc}[/dim]")
+
+    if not scored:
+        console.print("[red]No configuration could be scored.[/red]")
+        raise typer.Exit(code=1)
+
+    # Every configuration scored the same bars, in the same order, so one index serves.
+    index = pd.DatetimeIndex(np.concatenate([fold.test.to_numpy() for fold in scheme]))
+    truth = direction.reindex(index)
+    kept = index[truth.notna()]
+    actual = truth[truth.notna()].to_numpy(dtype=int)
+    moves = realised.reindex(kept).fillna(0.0)
+
+    try:
+        battery = _run_battery(scored, actual, kept, moves, cost, long_only, reps)
+    except ForecastLabError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from None
+
+    if as_json:
+        console.print_json(
+            data=_verdict_payload(
+                spec.name, interval, horizon, selected, scheme, battery, cost, cost_source,
+                long_only,
+            )
+        )
+        return
+
+    _print_verdict(spec.name, interval, selected, scheme, battery, cost, cost_source, long_only)
+
+
+@dataclass(frozen=True)
+class _Battery:
+    """Everything the verdict rests on, computed once and printed or serialised."""
+
+    configurations: tuple[str, ...]
+    directional: dict[str, Any]
+    survives_holm: dict[str, bool]
+    mean_bps: dict[str, float]
+    cumulative: dict[str, float]
+    benchmark_mean_bps: float
+    benchmark_cumulative: float
+    superiority: Any
+    sharpe: Any
+    best_by_return: str
+
+
+def _run_battery(
+    scored: list[PooledScore],
+    actual: Any,
+    index: pd.DatetimeIndex,
+    moves: pd.Series,
+    cost: float,
+    long_only: bool,
+    reps: int,
+) -> _Battery:
+    """The four tests, in the order their answers depend on each other."""
+    directional = {}
+    returns: dict[str, pd.Series] = {}
+    for entry in scored:
+        predictions = np.concatenate([np.asarray(f.predictions) for f in entry.folds])
+        directional[entry.key] = pesaran_timmermann(predictions, actual)
+        returns[entry.key] = directional_returns(
+            pd.Series(predictions, index=index), moves, round_trip_bps=cost, long_only=long_only
+        )
+
+    survives = holm({key: test.p_value for key, test in directional.items()})
+
+    # Always-long: the constant predictor in return space. Testing against zero instead
+    # would let a model collect a bull market and call it skill.
+    benchmark = directional_returns(
+        pd.Series(1.0, index=index), moves, round_trip_bps=cost, long_only=long_only
+    )
+
+    superiority = superior_predictive_ability(
+        -benchmark.to_numpy(),
+        {key: -value.to_numpy() for key, value in returns.items()},
+        reps=reps,
+    )
+
+    best = max(returns, key=lambda key: float(returns[key].mean()))
+    sharpes = [float(v.mean() / v.std()) for v in returns.values() if float(v.std()) > 0]
+    sharpe = deflated_sharpe(
+        returns[best].to_numpy(), trials=len(returns), trial_sharpes=sharpes
+    )
+
+    return _Battery(
+        configurations=tuple(returns),
+        directional=directional,
+        survives_holm=survives,
+        mean_bps={k: float(v.mean()) * 10_000 for k, v in returns.items()},
+        cumulative={k: float(v.sum()) for k, v in returns.items()},
+        benchmark_mean_bps=float(benchmark.mean()) * 10_000,
+        benchmark_cumulative=float(benchmark.sum()),
+        superiority=superiority,
+        sharpe=sharpe,
+        best_by_return=best,
+    )
+
+
+def _print_verdict(
+    symbol: str,
+    interval: Timeframe,
+    mode: Mode,
+    scheme: WalkForward,
+    battery: _Battery,
+    cost: float,
+    cost_source: str,
+    long_only: bool,
+) -> None:
+    total = len(battery.configurations)
+    surviving = sum(battery.survives_holm.values())
+    console.print(
+        f"[bold]{symbol}[/bold] at {interval.value}, mode {mode.value}: {total} "
+        f"configurations over {len(scheme)} folds, "
+        f"{'long-or-flat' if long_only else 'long-or-short'} at {cost:.2f} bps - {cost_source}"
+    )
+
+    console.print(
+        "\n[bold]1. Is there skill?[/bold] "
+        "[dim]Pesaran-Timmermann, against independence[/dim]"
+    )
+    table = Table(box=None, pad_edge=False)
+    table.add_column("configuration", justify="left", no_wrap=True)
+    for column in ("accuracy", "independent", "excess", "z", "p", "after Holm"):
+        table.add_column(column, justify="right", no_wrap=True)
+    ranked = sorted(battery.directional.items(), key=lambda kv: kv[1].p_value)
+    for key, test in ranked[:6]:
+        held = battery.survives_holm[key]
+        table.add_row(
+            escape(key), f"{test.accuracy:.2%}", f"{test.independent_accuracy:.2%}",
+            f"{test.excess:+.2%}", f"{test.statistic:.2f}",
+            f"{test.p_value:.5f}" if test.p_value >= 1e-5 else "<0.00001",
+            "[green]yes[/]" if held else "[red]no[/]",
+        )
+    console.print(table)
+    console.print(
+        f"[bold]{surviving} of {total}[/bold] survive Holm across {total} tests. "
+        "The null is independence between prediction and outcome, not a coin flip - a "
+        "model predicting UP constantly on a rising series scores well and carries nothing."
+    )
+
+    console.print(
+        "\n[bold]2. Is it worth anything?[/bold] "
+        "[dim]net of the venue's own spread[/dim]"
+    )
+    earners = sum(1 for value in battery.mean_bps.values() if value > 0)
+    beaters = sum(
+        1 for value in battery.mean_bps.values() if value > battery.benchmark_mean_bps
+    )
+    money = Table(box=None, pad_edge=False)
+    money.add_column("configuration", justify="left", no_wrap=True)
+    money.add_column("bps/bar", justify="right")
+    money.add_column("cumulative", justify="right")
+    for key, _ in sorted(battery.mean_bps.items(), key=lambda kv: -kv[1])[:3]:
+        money.add_row(
+            escape(key), f"{battery.mean_bps[key]:+.4f}", f"{battery.cumulative[key]:+.2%}"
+        )
+    money.add_row(
+        "[bold]always-long (benchmark)[/bold]",
+        f"[bold]{battery.benchmark_mean_bps:+.4f}[/bold]",
+        f"[bold]{battery.benchmark_cumulative:+.2%}[/bold]",
+    )
+    console.print(money)
+    console.print(
+        f"[bold]{earners} of {total}[/bold] make money at all; "
+        f"[bold]{beaters} of {total}[/bold] beat holding the asset."
+    )
+
+    console.print("\n[bold]3. Does the best survive having been the best?[/bold]")
+    console.print(
+        f"[dim]Hansen SPA[/dim] p = [bold]{battery.superiority.p_consistent:.4f}[/bold] "
+        f"(lower {battery.superiority.p_lower:.4f}, upper {battery.superiority.p_upper:.4f}) - "
+        f"{'something beats' if battery.superiority.any_survives else 'nothing beats'} "
+        f"the benchmark."
+    )
+    console.print(
+        f"[dim]Romano-Wolf StepM[/dim] rejects "
+        f"{escape(', '.join(battery.superiority.stepwise)) or 'nothing'}."
+    )
+    verdict = battery.sharpe
+    console.print(
+        f"[dim]Deflated Sharpe[/dim] on {escape(battery.best_by_return)}: "
+        f"Sharpe {verdict.sharpe:+.5f}/bar (skew {verdict.skew:+.2f}, kurtosis "
+        f"{verdict.kurtosis:.1f}), expected maximum of {verdict.trials} trials "
+        f"{verdict.expected_maximum:+.5f}, DSR [bold]{verdict.deflated:.4f}[/bold] - "
+        f"{'survives' if verdict.survives() else '[red]does not survive[/red]'}."
+    )
+
+    console.print("\n[bold]The verdict[/bold]")
+    if surviving and not beaters:
+        console.print(
+            f"[bold]There is a real directional edge and it is worth less than nothing.[/bold] "
+            f"{surviving} of {total} configurations beat independence after correcting for "
+            f"having tried {total}, so the signal is not an artefact of searching. None of "
+            f"them makes money: the best loses "
+            f"{abs(battery.cumulative[battery.best_by_return]):.1%} over the scored period "
+            f"while holding the asset returns "
+            f"{battery.benchmark_cumulative:+.1%}. The edge is real and smaller than the "
+            f"cost of acting on it."
+        )
+    elif beaters:
+        console.print(
+            f"[bold]{beaters} configuration(s) beat the benchmark.[/bold] Before treating "
+            "that as a finding, check it against the costs this project does not model: "
+            "slippage, the rollover surcharge, and the overnight swap."
+        )
+    else:
+        console.print(
+            "[bold]No skill and no profit.[/bold] Nothing survives the correction for "
+            "multiplicity and nothing beats holding the asset."
+        )
+    console.print(
+        "[dim]Unmodelled, and each one raises the bar: slippage beyond the quoted spread, "
+        "the rollover surcharge on bars adjacent to gaps, and the overnight swap.[/dim]"
+    )
+
+
+def _round_trip_for(bars: pd.DataFrame) -> tuple[float, str]:
+    """The round trip in bps, measured where the venue publishes it."""
+    if "spread" not in bars.columns:
+        return ASSUMED_ROUND_TRIP_BPS, "no spread in this series, so an optimistic 1 bp is assumed"
+    try:
+        summary = summarise_spread(bars)
+    except ForecastLabError:
+        return ASSUMED_ROUND_TRIP_BPS, "the spread could not be summarised; assuming 1 bp"
+    return summary.median_bps, "the venue's measured median spread"
+
+
+def _verdict_payload(
+    symbol: str,
+    interval: Timeframe,
+    horizon: int,
+    mode: Mode,
+    scheme: WalkForward,
+    battery: _Battery,
+    cost: float,
+    cost_source: str,
+    long_only: bool,
+) -> dict[str, Any]:
+    return {
+        "symbol": symbol,
+        "timeframe": interval.value,
+        "horizon": horizon,
+        "mode": mode.value,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "folds": len(scheme),
+        "scored_bars": battery.sharpe.n,
+        "configurations": len(battery.configurations),
+        "costs": {
+            "round_trip_bps": cost,
+            "source": cost_source,
+            "position": "long-or-flat" if long_only else "long-or-short",
+        },
+        "skill": {
+            "test": "Pesaran-Timmermann against independence",
+            "surviving_holm": sum(battery.survives_holm.values()),
+            "per_configuration": {
+                key: {
+                    "accuracy": test.accuracy,
+                    "independent_accuracy": test.independent_accuracy,
+                    "excess": test.excess,
+                    "statistic": test.statistic,
+                    "p_value": test.p_value,
+                    "survives_holm": battery.survives_holm[key],
+                }
+                for key, test in battery.directional.items()
+            },
+        },
+        "profit": {
+            "benchmark": "always-long",
+            "benchmark_mean_bps": battery.benchmark_mean_bps,
+            "benchmark_cumulative": battery.benchmark_cumulative,
+            "profitable": sum(1 for v in battery.mean_bps.values() if v > 0),
+            "beating_benchmark": sum(
+                1 for v in battery.mean_bps.values() if v > battery.benchmark_mean_bps
+            ),
+            "per_configuration": {
+                key: {"mean_bps": battery.mean_bps[key], "cumulative": battery.cumulative[key]}
+                for key in battery.configurations
+            },
+        },
+        "multiplicity": {
+            "spa_p_lower": battery.superiority.p_lower,
+            "spa_p_consistent": battery.superiority.p_consistent,
+            "spa_p_upper": battery.superiority.p_upper,
+            "spa_better": list(battery.superiority.better),
+            "stepm_rejected": list(battery.superiority.stepwise),
+            "deflated_sharpe": {
+                "configuration": battery.best_by_return,
+                "sharpe_per_bar": battery.sharpe.sharpe,
+                "skew": battery.sharpe.skew,
+                "kurtosis": battery.sharpe.kurtosis,
+                "trials": battery.sharpe.trials,
+                "probabilistic": battery.sharpe.probabilistic,
+                "expected_maximum": battery.sharpe.expected_maximum,
+                "deflated": battery.sharpe.deflated,
+                "survives": battery.sharpe.survives(),
+            },
+        },
     }
 
 

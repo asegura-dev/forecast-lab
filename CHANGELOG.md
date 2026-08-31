@@ -2,6 +2,31 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-30 - A real edge, worth less than nothing
+
+The project's answer, and it needed two questions kept apart to become one.
+
+### Added
+
+- **[ADR-013](docs/adr/ADR-013-skill-and-profit-are-separate-questions.md), `research/significance.py` and `forecast-lab verdict`** - Pesaran-Timmermann against independence, Holm across the eighteen tests, Hansen's SPA and Romano-Wolf's StepM on strategy returns, and the Probabilistic and Deflated Sharpe ratios.
+- **`directional_returns()`** in `research/costs.py`, which finally gives `net_of_costs()` the caller ADR-010 recorded it as waiting for. Both position framings: long-or-short, and the friendlier long-or-flat behind `--long-only`.
+- **[STATUS 2026-08-30](docs/status/STATUS-2026-08-verdict.md)** with its sidecar.
+
+### Changed
+
+- **The verdict is now two answers rather than one.** *Skill*: **9 of 18** configurations survive Holm on Pesaran-Timmermann, the best at z = 4.61 - the directional signal is real and not an artefact of having searched. *Profit*: **0 of 18** make money and 0 of 18 beat holding gold, under either position framing. Hansen's SPA gives p = 0.763, StepM rejects nothing, the Deflated Sharpe of the least-bad configuration is 0.0000.
+- **The headline number is the gap.** Traded, the models turn buy-and-hold's **+69.8%** into **-196.7%** over the same 40,587 bars. One point of directional accuracy costs more to collect than it is worth.
+- **Skill is tested against independence, not against a coin flip.** A predictor that always says UP on a series rising 52% of the time scores 52% and knows nothing; the independence benchmark measures 50.09%-50.19% here and a constant predictor scores exactly zero against it.
+
+### Fixed
+
+- **`arch` is not symmetric and fails silently.** Given the same DataFrame, `StepM.superior_models` returns column names while `SPA.better_models` returns positional indices. The first version passed both through `str()`, so a superior model at position 4 was reported as `'4'` - a valid-looking label belonging to nothing. Only a test asserting a known-superior model *by name* caught it.
+
+### Noted
+
+- **Two of the new tests were wrong before they were right**, and both are recorded in their own docstrings rather than quietly fixed. A test meant to show that fat tails widen a Sharpe's interval compared samples with different Sharpe ratios, then held the Sharpe fixed and still failed - because **positive skew reduces the variance** in the PSR formula. Fat tails alone do not cost certainty; negative skew with fat tails does, which is the shape gold returns actually have.
+- **Why the null is credible:** every test in the battery is shown a case where the effect is real and a case where it is not, so a battery that only ever returned "not significant" would fail its own suite.
+
 ## 2026-08-30 - The debts the ADRs had been recording
 
 Three of them, each written down as owed at the moment it was incurred rather than discovered later. Closing them found no new defects, which is the outcome an honest debt register is supposed to produce.

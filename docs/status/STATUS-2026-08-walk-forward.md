@@ -5,7 +5,7 @@
 - **Command:** `forecast-lab validate --target XAUUSD --timeframe 1H`
 - **Machine-readable output:** [walk-forward-canonical.json](walk-forward-canonical.json) - *regenerated 2026-08-28 with per-model break-evens, so it carries the corrected figures rather than the ones below.*
 - **Corrected by [STATUS 2026-08-28](STATUS-2026-08-turnover.md).** Every break-even quoted here assumes a turnover of 0.5 flips per bar. Measured, no model trades that often, and the shortfall of the closest is **0.46 points rather than 2.26**. The verdict is unchanged; the margins below are all too generous. Kept as published.
-- **Inputs:** `raw/*.csv` (Dukascopy, 2018-01 to 2026-08), hashed in [data-manifest.json](data-manifest.json). 50,948 rows x 19 columns, focus mode.
+- **Inputs:** `raw/*.csv` (Dukascopy, 2018-01 to 2026-08), hashed in [data-manifest.json](data-manifest.json). Figures are pinned to the **2026-08-26 snapshot**; `fetch` extends the series forward, so a later download changes every hash and `verify` will say so. 50,948 rows x 19 columns, focus mode.
 
 ## 1. The headline
 

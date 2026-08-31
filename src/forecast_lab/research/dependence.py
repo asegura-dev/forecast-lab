@@ -131,7 +131,7 @@ def measure_dependence(
     blocks: list[float] = []
     variance = 0.0
     for index, array in enumerate(arrays):
-        block = _optimal_block(array)
+        block = optimal_block(array)
         blocks.append(block)
         standard_error = _bootstrap_standard_error(
             array, block=block, seed=seed + index, replications=replications
@@ -150,14 +150,20 @@ def measure_dependence(
     )
 
 
-def _optimal_block(array: np.ndarray) -> float:
+def optimal_block(series: ArrayLike) -> float:
     """Politis-White optimal block length, floored at one.
+
+    Public because `significance` bootstraps the same series and must not choose its
+    block length by a different rule - two modules disagreeing about how dependent the
+    data is would make their p-values incomparable.
 
     Not reimplemented: the selection rule involves a spectral estimate and a correlogram
     cut-off, and `arch` is the standard implementation. What is *not* delegated is the
     resampling seed, which is fixed here so the published figure can be recomputed.
     """
     from arch.bootstrap import optimal_block_length
+
+    array = np.asarray(series, dtype=float)
 
     if array.size < 3 or float(np.std(array)) == 0.0:
         # A constant series has no dependence to find and would divide by zero in the

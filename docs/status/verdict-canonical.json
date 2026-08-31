@@ -1,0 +1,264 @@
+{
+  "symbol": "XAUUSD",
+  "timeframe": "1H",
+  "horizon": 1,
+  "mode": "focus",
+  "generated_at": "2026-08-30T18:43:08.556085+00:00",
+  "folds": 5,
+  "scored_bars": 40587,
+  "configurations": 18,
+  "costs": {
+    "round_trip_bps": 1.8648852404334182,
+    "source": "the venue's measured median spread",
+    "position": "long-or-short"
+  },
+  "skill": {
+    "test": "Pesaran-Timmermann against independence",
+    "surviving_holm": 9,
+    "per_configuration": {
+      "Logistic Regression [raw]": {
+        "accuracy": 0.5066893340232094,
+        "independent_accuracy": 0.5028911050145943,
+        "excess": 0.0037982290086150394,
+        "statistic": 1.6036662600037452,
+        "p_value": 0.05439381840858721,
+        "survives_holm": false
+      },
+      "Logistic Regression [pca-95]": {
+        "accuracy": 0.5098184147633479,
+        "independent_accuracy": 0.5032412958723482,
+        "excess": 0.006577118890999656,
+        "statistic": 2.8124398151736067,
+        "p_value": 0.0024583611830324265,
+        "survives_holm": true
+      },
+      "Logistic Regression [pca-90]": {
+        "accuracy": 0.5099169684874467,
+        "independent_accuracy": 0.503337801402043,
+        "excess": 0.0065791670854037365,
+        "statistic": 2.8240741295723644,
+        "p_value": 0.0023708708254181667,
+        "survives_holm": true
+      },
+      "Naive Bayes [raw]": {
+        "accuracy": 0.5076748712641979,
+        "independent_accuracy": 0.500304565718715,
+        "excess": 0.0073703055454829025,
+        "statistic": 2.9717369878890794,
+        "p_value": 0.001480601191511154,
+        "survives_holm": true
+      },
+      "Naive Bayes [pca-95]": {
+        "accuracy": 0.5072067410747284,
+        "independent_accuracy": 0.501767914418988,
+        "excess": 0.005438826655740359,
+        "statistic": 2.2292504932107775,
+        "p_value": 0.012898621308175292,
+        "survives_holm": false
+      },
+      "Naive Bayes [pca-90]": {
+        "accuracy": 0.5095966688841255,
+        "independent_accuracy": 0.5017941906770733,
+        "excess": 0.007802478207052155,
+        "statistic": 3.1997054220454655,
+        "p_value": 0.0006878405688468085,
+        "survives_holm": true
+      },
+      "Random Forest [raw]": {
+        "accuracy": 0.5112228053317565,
+        "independent_accuracy": 0.5009925259304007,
+        "excess": 0.01023027940135579,
+        "statistic": 4.144629608208561,
+        "p_value": 1.7018170313397373e-05,
+        "survives_holm": true
+      },
+      "Random Forest [pca-95]": {
+        "accuracy": 0.5076255944021485,
+        "independent_accuracy": 0.5017645701679591,
+        "excess": 0.005861024234189438,
+        "statistic": 2.4021434753816093,
+        "p_value": 0.008149657095037314,
+        "survives_holm": false
+      },
+      "Random Forest [pca-90]": {
+        "accuracy": 0.5077487865572721,
+        "independent_accuracy": 0.5017239614054637,
+        "excess": 0.006024825151808355,
+        "statistic": 2.467355109454454,
+        "p_value": 0.006805764756399458,
+        "survives_holm": false
+      },
+      "XGBoost [raw]": {
+        "accuracy": 0.5107300367112623,
+        "independent_accuracy": 0.500910352905116,
+        "excess": 0.009819683806146284,
+        "statistic": 3.9749437610544804,
+        "p_value": 3.5197944433129475e-05,
+        "survives_holm": true
+      },
+      "XGBoost [pca-95]": {
+        "accuracy": 0.5056545199201715,
+        "independent_accuracy": 0.5011148299680337,
+        "excess": 0.0045396899521378264,
+        "statistic": 1.8417342988388978,
+        "p_value": 0.03275701228616796,
+        "survives_holm": false
+      },
+      "XGBoost [pca-90]": {
+        "accuracy": 0.506122650109641,
+        "independent_accuracy": 0.501392402803443,
+        "excess": 0.004730247306197977,
+        "statistic": 1.926282749680474,
+        "p_value": 0.027034539086729894,
+        "survives_holm": false
+      },
+      "LightGBM [raw]": {
+        "accuracy": 0.5110749747456081,
+        "independent_accuracy": 0.501030745942161,
+        "excess": 0.01004422880344713,
+        "statistic": 4.070946890306444,
+        "p_value": 2.341121226868887e-05,
+        "survives_holm": true
+      },
+      "LightGBM [pca-95]": {
+        "accuracy": 0.5027718234902802,
+        "independent_accuracy": 0.5014783978299037,
+        "excess": 0.0012934256603764904,
+        "statistic": 0.5274250706926055,
+        "p_value": 0.29894921866205315,
+        "survives_holm": false
+      },
+      "LightGBM [pca-90]": {
+        "accuracy": 0.5077734249882967,
+        "independent_accuracy": 0.5017359051591388,
+        "excess": 0.0060375198291579,
+        "statistic": 2.4731154164542106,
+        "p_value": 0.006697043922031218,
+        "survives_holm": false
+      },
+      "HistGradientBoosting [raw]": {
+        "accuracy": 0.5122822578658192,
+        "independent_accuracy": 0.5008878986482068,
+        "excess": 0.011394359217612338,
+        "statistic": 4.611362912952556,
+        "p_value": 2.0001871680506356e-06,
+        "survives_holm": true
+      },
+      "HistGradientBoosting [pca-95]": {
+        "accuracy": 0.5065415034370612,
+        "independent_accuracy": 0.5024047553649443,
+        "excess": 0.004136748072116836,
+        "statistic": 1.7209068729391919,
+        "p_value": 0.0426338621099451,
+        "survives_holm": false
+      },
+      "HistGradientBoosting [pca-90]": {
+        "accuracy": 0.5116416586591765,
+        "independent_accuracy": 0.5018873519557391,
+        "excess": 0.009754306703437465,
+        "statistic": 4.007705649732742,
+        "p_value": 3.065573381060748e-05,
+        "survives_holm": true
+      }
+    }
+  },
+  "profit": {
+    "benchmark": "always-long",
+    "benchmark_mean_bps": 0.17189705059684363,
+    "benchmark_cumulative": 0.6976785592574093,
+    "profitable": 0,
+    "beating_benchmark": 0,
+    "per_configuration": {
+      "Logistic Regression [raw]": {
+        "mean_bps": -0.4847013967790015,
+        "cumulative": -1.9672575591069332
+      },
+      "Logistic Regression [pca-95]": {
+        "mean_bps": -0.5271722705701835,
+        "cumulative": -2.1396340945632035
+      },
+      "Logistic Regression [pca-90]": {
+        "mean_bps": -0.5305053316666742,
+        "cumulative": -2.1531619896355307
+      },
+      "Naive Bayes [raw]": {
+        "mean_bps": -0.5247982208460431,
+        "cumulative": -2.1299985389478353
+      },
+      "Naive Bayes [pca-95]": {
+        "mean_bps": -0.5285982629632685,
+        "cumulative": -2.145421769889018
+      },
+      "Naive Bayes [pca-90]": {
+        "mean_bps": -0.5440522419155254,
+        "cumulative": -2.208144834262543
+      },
+      "Random Forest [raw]": {
+        "mean_bps": -0.61698311972279,
+        "cumulative": -2.504149388018888
+      },
+      "Random Forest [pca-95]": {
+        "mean_bps": -0.6266022711203704,
+        "cumulative": -2.543190637796247
+      },
+      "Random Forest [pca-90]": {
+        "mean_bps": -0.7414200050357899,
+        "cumulative": -3.0092013744387605
+      },
+      "XGBoost [raw]": {
+        "mean_bps": -0.6295019937633684,
+        "cumulative": -2.5549597420873833
+      },
+      "XGBoost [pca-95]": {
+        "mean_bps": -0.7984007837763226,
+        "cumulative": -3.2404692611129606
+      },
+      "XGBoost [pca-90]": {
+        "mean_bps": -0.7308639353709351,
+        "cumulative": -2.966357454490014
+      },
+      "LightGBM [raw]": {
+        "mean_bps": -0.5358494734219016,
+        "cumulative": -2.174852257777472
+      },
+      "LightGBM [pca-95]": {
+        "mean_bps": -0.9409580789325688,
+        "cumulative": -3.8190665549636167
+      },
+      "LightGBM [pca-90]": {
+        "mean_bps": -0.7344384858501639,
+        "cumulative": -2.98086548252006
+      },
+      "HistGradientBoosting [raw]": {
+        "mean_bps": -0.6886600924471924,
+        "cumulative": -2.7950647172154195
+      },
+      "HistGradientBoosting [pca-95]": {
+        "mean_bps": -0.572952661907435,
+        "cumulative": -2.3254429688837064
+      },
+      "HistGradientBoosting [pca-90]": {
+        "mean_bps": -0.5715934633773342,
+        "cumulative": -2.319926389809586
+      }
+    }
+  },
+  "multiplicity": {
+    "spa_p_lower": 0.763,
+    "spa_p_consistent": 0.763,
+    "spa_p_upper": 1.0,
+    "spa_better": [],
+    "stepm_rejected": [],
+    "deflated_sharpe": {
+      "configuration": "Logistic Regression [raw]",
+      "sharpe_per_bar": -0.021233407613379152,
+      "skew": -0.7480633261950753,
+      "kurtosis": 28.29203964092257,
+      "trials": 18,
+      "probabilistic": 8.336661667791142e-06,
+      "expected_maximum": 0.009803507248031054,
+      "deflated": 1.5557694840213364e-10,
+      "survives": false
+    }
+  }
+}

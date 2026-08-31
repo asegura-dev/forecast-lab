@@ -38,9 +38,32 @@ Rebuilt end to end - labels on an explicit horizon, a purged split, features tha
 
 **The sign flips between datasets and both results sit far inside the noise.** That is the finding: at this effect size the sign carries no information - and the original analysis reported a difference of the same order and read it as a discovery.
 
-What is established firmly: **nothing tested reaches the accuracy at which trading would pay for its own costs** - measured against each model's own turnover rather than an assumed one, the closest falls short by **0.46 points**. What is *not* established is "there is no edge" - even the walk-forward design below, which resolves 0.62 points, would miss a real edge of 0.4, and saying otherwise would repeat the original's mistake in the opposite direction.
+What is established firmly: **nothing tested reaches the accuracy at which trading would pay for its own costs** - measured against each model's own turnover rather than an assumed one, the closest falls short by **0.46 points**.
 
 **Scored across the whole history rather than one block**, five expanding folds covering 2019-06 to 2026-08 score six models over **40,587 bars**. None clears the accuracy that pays for its own costs. The closest is **Naive Bayes at 50.77% against 51.23%** - short by **0.46 points, 1.86 standard errors** - and it gets there by trading least, holding each position 5.7 bars ([STATUS](docs/status/STATUS-2026-08-turnover.md)).
+
+### And the answer to the question underneath
+
+Two questions had to be separated before either could be answered, because they turn out to disagree.
+
+| | Test | Answer |
+|---|---|---|
+| **Is there skill?** | Pesaran-Timmermann, corrected with Holm | **Yes. 9 of 18** configurations survive; the best at z = 4.61 |
+| **Does anything make money?** | Net of the venue's own spread | **No. 0 of 18**, under either position framing |
+| **Does anything beat holding gold?** | Hansen SPA | **No.** p = 0.763 |
+| **Does the best survive being the best?** | Romano-Wolf StepM, Deflated Sharpe | **No.** StepM rejects nothing; DSR = 0.0000 |
+
+**There is a real directional edge and it is worth less than nothing.** Nine configurations carry a
+statistically robust signal of about one point of directional accuracy, corrected for having tried
+eighteen. Traded, those same models turn buy-and-hold's **+69.8%** into **-196.7%** over the same
+40,587 bars. One point of accuracy costs more to collect than it is worth
+([ADR-013](docs/adr/ADR-013-skill-and-profit-are-separate-questions.md),
+[STATUS](docs/status/STATUS-2026-08-verdict.md)).
+
+That is a better answer than either half. *"There is no signal"* would have been wrong; *"we found an
+edge"* would have been true and dangerously incomplete. What the data supports is that the market is
+not perfectly efficient at this horizon, and the inefficiency is smaller than the cost of exploiting
+it - which is what an efficient market with frictions is supposed to look like.
 
 **The ordering inverts once turnover is measured**, which is the sharpest thing in the project after the selection result. By accuracy, HistGradientBoosting wins at 51.23% and Naive Bayes is fifth. By whether it pays for itself, Naive Bayes is closest by a full point, because a persistent model crosses the spread half as often and faces a threshold **1.45 points lower**. Ranking by accuracy was ranking by the wrong criterion ([ADR-012](docs/adr/ADR-012-turnover-and-dependence-are-measured.md)).
 
@@ -182,6 +205,7 @@ Written as a research book: each document exists because a decision was made, an
 | [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) | The cost of trading is measured from the venue, not assumed |
 | [ADR-011](docs/adr/ADR-011-power-before-verdict.md) | A negative result is only a finding if the design could have seen the effect |
 | [ADR-012](docs/adr/ADR-012-turnover-and-dependence-are-measured.md) | The last two assumed parameters, measured - one flattered the conclusion, one undermined it |
+| [ADR-013](docs/adr/ADR-013-skill-and-profit-are-separate-questions.md) | Skill and profit are separate questions, and they get separate answers |
 | [STATUS 2026-08-18](docs/status/STATUS-2026-08-dukascopy-probe.md) | The data probe: instrument identity confirmed, and why VIX was dropped |
 | [STATUS 2026-08-23](docs/status/STATUS-2026-08-notebook-baseline.md) | The baseline recomputed from data, and the 59% of gaps nobody had measured |
 | [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) | The feature matrix, and a guard that real data corrected twice |
@@ -189,11 +213,12 @@ Written as a research book: each document exists because a decision was made, an
 | [STATUS 2026-08-27](docs/status/STATUS-2026-08-exploratory.md) | The EDA: three findings that dissolve, and a +0.923 correlation that is +0.13 |
 | [STATUS 2026-08-27](docs/status/STATUS-2026-08-walk-forward.md) | **The firmest test**: 40,587 bars, with the power to mean it |
 | [STATUS 2026-08-28](docs/status/STATUS-2026-08-turnover.md) | **The correction**: turnover was assumed, and the margin was two and a quarter points too generous |
+| [STATUS 2026-08-30](docs/status/STATUS-2026-08-verdict.md) | **The answer**: a real edge, worth less than nothing - 9 of 18 survive Holm, 0 of 18 make money |
 | [CHANGELOG](CHANGELOG.md) | Notable changes, newest first |
 
 ## Status
 
-The pipeline runs end to end and now answers the question it was built to answer: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, fitted, priced against the venue's own spread, and scored across nine years of history with a stated detection floor. What remains is the **significance battery** - Romano-Wolf and Hansen SPA, for having scored many configurations - and the dashboard. The stationary bootstrap that was owed here has been run: the dependence it was meant to correct is not there. The order was deliberate: the original went wrong before any model was fitted, so the corrections came first.
+The pipeline runs end to end and now answers the question it was built to answer: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, fitted, priced against the venue's own spread, and scored across nine years of history with a stated detection floor. The significance battery is done and the verdict is stated. What remains is presentation: a single `FINDINGS` document a reader can land on, and the dashboard ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), still Plan). The order was deliberate: the original went wrong before any model was fitted, so the corrections came first.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
@@ -208,6 +233,7 @@ The pipeline runs end to end and now answers the question it was built to answer
 - [x] Walk-forward validation, and the detection floor that tells a null result from a blind one
 - [x] Turnover and serial dependence measured rather than assumed, and the margin corrected
 - [x] The composition root under test, `--json` everywhere, and PCA scored across folds
+- [x] The significance battery, and the verdict it produces
 - [ ] The evaluation battery and the verdict
 - [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 
