@@ -16,7 +16,10 @@ in the logging is indistinguishable from a crash in the work.
 
 from __future__ import annotations
 
+import importlib.util
 import math
+import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -2284,6 +2287,60 @@ def ingest_command(
     if report.rejected:
         console.print(f"[yellow]{len(report.rejected)} file(s) rejected - see above.[/yellow]")
         raise typer.Exit(code=1)
+
+
+@app.command("dashboard")
+def dashboard_command(
+    port: Annotated[int, typer.Option("--port", help="Port to serve on.")] = 8501,
+    headless: Annotated[
+        bool,
+        typer.Option("--headless/--open", help="Skip opening a browser; serve only."),
+    ] = False,
+) -> None:
+    """Serve the dashboard, which runs these same commands as subprocesses.
+
+    Every other capability in this project is a `forecast-lab <command>`, and until now the
+    page was the exception - a long path that only worked from the repository root. This
+    resolves the script beside itself, so it runs from anywhere and from an installed
+    package.
+
+    It is **not** a panel and cannot be reached from one: the dashboard invoking this would
+    spawn a server that spawns a server. The runner refuses it by name (ADR-005 sec. 4).
+    """
+    # Spawned, never imported. Importing `dashboard` here would drag Streamlit into every
+    # `forecast-lab --help`, which is the whole reason it is an optional extra - and would
+    # make the CLI depend on the page rather than the other way round.
+    script = Path(__file__).with_name("dashboard.py")
+    if not script.is_file():
+        console.print(f"[red]The dashboard script is missing from {script.parent}.[/red]")
+        raise typer.Exit(code=1)
+
+    if importlib.util.find_spec("streamlit") is None:
+        console.print(
+            "[red]Streamlit is not installed.[/red] It is an optional extra so that a "
+            "command-line install stays light:\n\n    uv sync --extra dashboard"
+        )
+        raise typer.Exit(code=2)
+
+    # `python -m streamlit`, never the console script. Windows Smart App Control blocks the
+    # unsigned `streamlit.exe` shim, and a reinstall is enough to make it new again - the
+    # same reason this project's own gates are invoked as `python -m mypy` and
+    # `python -m pytest`. The module form needs no shim and therefore no reputation.
+    argv = [
+        sys.executable, "-m", "streamlit", "run", str(script),
+        "--server.port", str(port),
+        "--server.headless", "true" if headless else "false",
+    ]
+    console.print(f"Serving on [bold]http://localhost:{port}[/bold] - Ctrl-C to stop.")
+    console.print(f"[dim]{' '.join(argv)}[/dim]")
+    try:
+        raise typer.Exit(code=subprocess.call(argv))
+    except KeyboardInterrupt:  # pragma: no cover - the ordinary way to stop a server
+        console.print("\nStopped.")
+        raise typer.Exit(code=0) from None
+    except OSError as exc:
+        console.print(f"[red]Could not start Streamlit: {exc}[/red]")
+        raise typer.Exit(code=1) from None
 
 
 @app.command("verify")

@@ -2,6 +2,58 @@
 
 Notable changes to **forecast-lab**, newest first. This is a research lab rather than a released product, so entries are **dated** instead of versioned. It complements - it does not replace - the [STATUS logs](docs/status/) (what an experiment measured), the [ADRs](docs/adr/) (decisions and their reasoning), and the git history. Only notable changes are listed here; `git log` has every commit. The format loosely follows [Keep a Changelog](https://keepachangelog.com).
 
+## 2026-08-31 - The dashboard, which runs the CLI rather than reimplementing it
+
+[ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) has been at **Plan** since 2026-08-23, and it is why every command in this repository grew a `--json` flag. Built now, and the decision held: the page is the commands.
+
+### Added
+
+- **`interfaces/runner.py`** - build an argument list, run `forecast-lab <command> --json` as a subprocess, parse the payload. It imports nothing from this package at all, which is what stops it becoming a second implementation of the analysis. 23 tests, none of which need Streamlit.
+- **`interfaces/dashboard.py`** - seven pages, each showing the command line that produced what is above it. Results cached on the manifest hash, because ADR-002 already makes that hash the identity of the inputs.
+- **Two layering guards.** `runner` may import nothing from `forecast_lab`; `dashboard` may import only `runner`. Verified by injecting a forbidden import and confirming the guard fails - a guard nobody has seen fail is a comment.
+- **`forecast-lab dashboard`** - the launcher. Every other capability here is a `forecast-lab <command>` and the page was the exception, reachable only through a long path that worked from the repository root. It resolves the script beside itself, spawns rather than imports it, and uses `python -m streamlit` because Smart App Control blocks the unsigned shim. Refused from inside the page by name: serving it from a panel would start a server that starts a server.
+- **`streamlit` as an optional extra**: `uv sync --extra dashboard`. The CLI install stays light, and it is the CLI the gates run.
+
+### Changed
+
+- **ADR-005's cost estimate was wrong and the correction is more interesting than the number.** It claimed `baseline` runs in 0.8 seconds. Measured: **2.9 s, of which 2.8 is interpreter startup and imports** - the analysis itself is about 110 ms. The cost is a fixed toll per invocation rather than work that grows with the data, which is what makes caching on the manifest hash the right answer and names a second option the ADR did not have: deferring the heavy imports in `cli.py`.
+
+### Fixed
+
+- **The subprocess decoded with the wrong codec.** `subprocess.run(text=True)` uses the *parent's* locale codec - cp1252 here - and the CLI emits characters outside it, so the reader thread died with a `UnicodeDecodeError` and the payload was lost. That is the same defect `cli.py`'s own docstring warns about for redirected output, arriving from the other side. Fixed with an explicit UTF-8 decode and `PYTHONIOENCODING` in the child.
+- **`symbols --json` and `verify --json` do not exist.** Both report to a human and exit; asking for a payload is a usage error. The capability now lives beside the allow-list, so a panel cannot get it wrong.
+- **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
+- **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
+
+## 2026-08-31 - The dashboard, audited and rebuilt
+
+Four independent reviews of the page built earlier the same day returned **21 confirmed defects**. Three were in guards and tests written to prevent exactly what they failed to prevent, and those are the ones this entry leads with.
+
+### Fixed - guards that did not guard
+
+- **The payload-contract test asserted nothing.** It promised to fail when a payload key was renamed "rather than as a KeyError in a browser", and its body checked that a set literal three lines above it was non-empty. [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) sec. 3's whole argument - that the payload is *one narrow, explicit, testable surface* - rested on a tautology. The replacement runs each command and walks every path the dashboard indexes; renaming `break_even` to `breakeven` now fails it.
+- **The layering guard was scoped by filename**, and Streamlit discovers a `pages/` directory beside the entrypoint - so `interfaces/pages/verdict.py` could import `research` with no import statement in `dashboard.py` for the guard to see. It is now deny-by-default across the whole `interfaces` package. Verified by planting that file, which also caught the first fix scanning a path that did not exist and passing vacuously.
+- **`dashboard.py` had no tests and a comment claiming otherwise.** It now has a suite, skipped when the optional extra is absent.
+- **Read-only rested on statement ordering.** `explore --figures DIR` and `train --figures DIR` write; `Invocation` validated the command word only, and the guarantee held because both commands return early on `--json` before their figure block. `FORBIDDEN_OPTIONS` makes it structural.
+
+### Fixed - the page was wrong or empty
+
+- **Two panels fetched a result and threw it away.** `verify` and `symbols` have no `--json`, so their answer is the rendered text, and both call sites ignored it. Worse: `verify` exits 1 on drift - which the module docstring names as the one gap caching cannot cover - so the safety net failed in precisely the case it existed for. That exit code is now a report.
+- **Four p-values printed as `0.0000`.** `2.00e-06`, `1.70e-05`, `2.34e-05` and `3.52e-05`, indistinguishable, in the table whose subject is significance. The Deflated Sharpe of `1.56e-10` did the same.
+- **Three figures were typed into the page** that the same panel already fetched - including "nine of eighteen" while the Verdict page computed thirteen. A string literal is worse than a second implementation: the cache cannot expire a sentence.
+- **Sidebar choices were lost** on the way to a document page, so a reader returned to a dataset they had not picked. Keying the widgets was not enough - Streamlit discards the state of a control a run does not instantiate.
+- **The break-even changed basis silently** on `data/reference`, which carries no spread column. `costs.source` said so and the page never rendered it.
+- **The copyable command line carried `dataaw`**, which bash reads as `dataraw`.
+- **`cwd` was never set**, so launching the server from any other directory left every panel failing while the page looked healthy. Testing that the server *started* from elsewhere proved less than it appeared to.
+- Plus: failures were never cached and re-spawned on every click; the payload parser cut at the first `[`, reachable through `[WinError 126]`; `stderr or stdout` let a stray warning hide the real reason; the timeframe list was hard-coded while the symbol list was read off disk; `Mode` appeared on pages that ignore it; and `validate` and `verdict` disagreed on `--pca`, putting a six-row table above an eighteen-row one.
+
+### Added
+
+- **`interfaces/presentation.py`** - formatting as pure functions returning strings. The p-value defect could not be caught by any test that did not start a browser; now it is three lines. A number's format follows from what it means, so a caller names `Style.SIGNIFICANCE` and never a precision.
+- **The Verdict page renders the half it was discarding**: the detectable effect, the power for a paying edge, the dependence inflation and its contrast against the features, the fold layout, and the measured cost basis. Those are FINDINGS' two strongest claims, fetched on every visit and thrown away.
+- **Exploration, Features and Models render tables and metrics** instead of one `st.json` blob each, with the committed figures beside them and a glossary lifted verbatim from FINDINGS rather than paraphrased.
+- **Charts without Arrow.** Wrapping a Vega-Lite view in a `layer` puts `data` where Streamlit's Arrow marshaller does not look, so a page on a machine where `pyarrow` is blocked can still draw.
+
 ## 2026-08-31 - FINDINGS
 
 ### Added

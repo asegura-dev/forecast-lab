@@ -44,9 +44,10 @@ COMMANDS = (
     "baseline",
     "ingest",
     "verify",
+    "dashboard",
 )
 
-#: The commands ADR-005 sec. 5 requires to emit machine-readable output.
+#: The commands ADR-005 sec. 1 requires to emit machine-readable output.
 JSON_COMMANDS = ("align", "explore", "features", "baseline")
 
 #: Long enough for the longest indicator window to warm up and for a split to have blocks.
@@ -118,7 +119,7 @@ def test_every_command_has_reachable_help(command: str) -> None:
 @pytest.mark.unit
 @pytest.mark.parametrize("command", JSON_COMMANDS)
 def test_json_output_is_parseable(command: str, data_dir: Path) -> None:
-    """ADR-005 sec. 5: the dashboard runs these rather than reimplementing them.
+    """ADR-005 sec. 3: the dashboard runs these rather than reimplementing them.
 
     `train` and `validate` are excluded here only because fitting six estimators on every
     invocation would dominate the suite's runtime; `validate` has its own test below.
@@ -290,3 +291,137 @@ def test_a_series_without_a_spread_column_says_so_rather_than_inventing_one(
 
     assert result.exit_code == 0, result.output
     assert "assumed" in result.output.lower()
+
+
+# --- the payload contract the dashboard depends on -------------------------------------
+
+
+#: Every key the dashboard indexes, by command. Nested paths are dotted; a `[]` segment
+#: means "every element of this list" and a `{}` segment means "every value of this dict".
+#:
+#: This list is checked against payloads produced by running the commands, which is the
+#: whole point. Its first version asserted that a set literal three lines above it was
+#: non-empty - it named `cli.py` in its docstring, touched nothing, and would have let
+#: `break_even` be renamed to `breakeven` with every gate green and a KeyError waiting in
+#: the browser. An audit found it; this is the replacement.
+DASHBOARD_KEYS: dict[str, tuple[str, ...]] = {
+    "align": (
+        "target", "rows", "columns", "first", "last",
+        "coverage[].symbol", "coverage[].rows", "coverage[].missing",
+        "coverage[].missing_fraction", "coverage[].stale", "coverage[].stale_fraction",
+        "coverage[].max_stale_seconds",
+    ),
+    "explore": (
+        "correlations{}.on_levels", "correlations{}.on_returns", "correlations{}.inflation",
+        "by_year{}.bars", "by_year{}.up_share", "by_year{}.volatility",
+        "moves.up", "moves.down", "moves.up_share",
+        "normality.price.p_value", "normality.returns.p_value",
+    ),
+    "features": (
+        "rows", "columns", "warmup_dropped", "first", "last", "mode", "symbols",
+        "policy_passes", "violations",
+        "features[].name", "features[].scale", "features[].worst_change",
+        "features[].adf_pvalue", "features[].kpss_pvalue",
+    ),
+    "validate": (
+        "models[].model", "models[].representation", "models[].accuracy",
+        "models[].baseline_accuracy", "models[].flip_rate", "models[].bars_held",
+        "models[].break_even",
+        "power.walk_forward_mde", "power.single_split_mde",
+        "power.power_for_break_even", "power.bars_required",
+        "dependence.inflation", "dependence.effective_sample",
+        "dependence.lag_one_autocorrelation",
+        "serial_dependence_contrast.label",
+        "serial_dependence_contrast.most_autocorrelated_features",
+        "scheme.blocks[].fold", "scheme.blocks[].train_rows", "scheme.blocks[].test_rows",
+    ),
+    "verdict": (
+        "configurations", "scored_bars", "folds",
+        "costs.round_trip_bps", "costs.source", "costs.position",
+        "skill.surviving_holm",
+        "skill.per_configuration{}.accuracy",
+        "skill.per_configuration{}.independent_accuracy",
+        "skill.per_configuration{}.excess",
+        "skill.per_configuration{}.statistic",
+        "skill.per_configuration{}.p_value",
+        "skill.per_configuration{}.survives_holm",
+        "profit.profitable", "profit.beating_benchmark", "profit.benchmark_cumulative",
+        "profit.per_configuration{}.cumulative",
+        "multiplicity.spa_p_consistent", "multiplicity.spa_p_lower",
+        "multiplicity.spa_p_upper", "multiplicity.stepm_rejected",
+        "multiplicity.deflated_sharpe.deflated",
+        "multiplicity.deflated_sharpe.configuration",
+        "multiplicity.deflated_sharpe.sharpe_per_bar",
+        "multiplicity.deflated_sharpe.skew",
+        "multiplicity.deflated_sharpe.kurtosis",
+        "multiplicity.deflated_sharpe.expected_maximum",
+        "multiplicity.deflated_sharpe.trials",
+    ),
+}
+
+#: Extra arguments some commands need to reach the sections the dashboard reads.
+EXTRA_ARGUMENTS: dict[str, list[str]] = {
+    "validate": ["--folds", "2"],
+    "verdict": ["--folds", "2", "--no-pca", "--reps", "50"],
+}
+
+
+def _resolve(payload: object, path: str) -> None:
+    """Walk a dotted path, asserting each segment exists.
+
+    `[]` descends into every element of a list, `{}` into every value of a dict - so a
+    key missing from one configuration out of eighteen fails rather than hiding behind
+    the first one that has it.
+    """
+    if not path:
+        return
+    head, _, rest = path.partition(".")
+    if head.endswith("[]"):
+        name = head[:-2]
+        assert isinstance(payload, dict) and name in payload, f"missing list `{name}`"
+        items = payload[name]
+        assert isinstance(items, list) and items, f"`{name}` is not a non-empty list"
+        for item in items:
+            _resolve(item, rest)
+    elif head.endswith("{}"):
+        name = head[:-2]
+        assert isinstance(payload, dict) and name in payload, f"missing mapping `{name}`"
+        values = payload[name]
+        assert isinstance(values, dict) and values, f"`{name}` is not a non-empty mapping"
+        for value in values.values():
+            _resolve(value, rest)
+    else:
+        assert isinstance(payload, dict) and head in payload, f"missing key `{head}`"
+        _resolve(payload[head], rest)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("command", sorted(DASHBOARD_KEYS))
+def test_the_payload_carries_every_key_the_dashboard_indexes(
+    command: str, data_dir: Path
+) -> None:
+    """ADR-005 sec. 3 calls the payload a contract and its testable surface the reason to
+    prefer it over an import. This is that test: run the command, walk each path the
+    dashboard uses, and fail here rather than as a KeyError in a browser.
+    """
+    arguments = [
+        command, "--target", "XAUUSD", "--timeframe", "1H", "--dir", str(data_dir),
+        *EXTRA_ARGUMENTS.get(command, []), "--json",
+    ]
+    result = runner.invoke(app, arguments)
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    for path in DASHBOARD_KEYS[command]:
+        _resolve(payload, path)
+
+
+@pytest.mark.unit
+def test_the_key_list_covers_the_commands_the_dashboard_runs() -> None:
+    """A command the dashboard indexes but nobody listed would be untested and unnoticed."""
+    from forecast_lab.interfaces.runner import JSON_CAPABLE
+
+    assert set(DASHBOARD_KEYS) <= JSON_CAPABLE
+    # `baseline` and `train` are JSON-capable and the dashboard reads `train`; `baseline`
+    # is reached only through its own page, which renders no payload keys directly.
+    assert "verdict" in DASHBOARD_KEYS, "the most deeply indexed payload must be covered"

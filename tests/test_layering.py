@@ -308,3 +308,111 @@ def test_matplotlib_stays_in_the_plotting_module() -> None:
                 offenders.append(f"{where}:{node.lineno}")
 
     assert not offenders, f"matplotlib belongs in {PLOT_QUARANTINE}. Found: {offenders}"
+
+
+#: `SRC` already ends in the package name, so the interfaces package is one level below
+#: it. Spelled out because getting this wrong made an earlier version of the guard scan
+#: an empty directory and pass vacuously - caught only by deliberately planting a
+#: violation and watching it stay green.
+INTERFACES = SRC / "interfaces"
+
+#: The command-line entry points: the composition root and the `python -m` shim that
+#: forwards to it. These are the only modules under `interfaces/` allowed to reach the
+#: analysis layer; everything else in the package belongs to the dashboard.
+ENTRY_POINTS = ("interfaces/cli.py", "interfaces/__main__.py")
+
+#: What a dashboard module may import from this package. `runner` and `presentation` import
+#: nothing at all; `dashboard` may import those two.
+DASHBOARD_IMPORTS: dict[str, set[str]] = {
+    "interfaces/runner.py": set(),
+    "interfaces/presentation.py": set(),
+    "interfaces/dashboard.py": {
+        "forecast_lab.interfaces.runner",
+        "forecast_lab.interfaces.presentation",
+    },
+}
+
+
+@pytest.mark.unit
+def test_the_dashboard_cannot_reach_the_analysis_layer() -> None:
+    """ADR-005 sec. 1, made executable - and scoped by **default deny**.
+
+    The first version listed the two files to check by name. That is the wrong direction,
+    and an audit found the walk-around: Streamlit discovers a `pages/` directory beside the
+    entrypoint and renders each file in it as a page of this very app. A
+    `interfaces/pages/verdict.py` importing `research` would need **no import statement in
+    `dashboard.py`** to be reached, so a filename allow-list would never look at it and
+    every gate would stay green while the decision was dead.
+
+    So the rule is inverted: every module under `interfaces/` except the composition root
+    is a dashboard module, and an unknown one may import nothing from the package until
+    someone adds it to `DASHBOARD_IMPORTS` on purpose.
+
+    **What this does not catch**, stated for the same reason `_io_name` states it:
+    `importlib.import_module`, `__import__` and `sys.modules[...]` all slip past an
+    import-statement check. It is a guard against drift and honest mistakes, not against
+    determined circumvention.
+    """
+    offenders: list[str] = []
+    for module in sorted(INTERFACES.rglob("*.py")):
+        where = module.relative_to(SRC).as_posix()
+        if where.endswith(ENTRY_POINTS) or module.name == "__init__.py":
+            continue
+        allowed = DASHBOARD_IMPORTS.get(
+            next((k for k in DASHBOARD_IMPORTS if where.endswith(k)), ""), set()
+        )
+        tree = ast.parse(module.read_text(encoding="utf-8"), filename=str(module))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Import | ast.ImportFrom):
+                continue
+            if isinstance(node, ast.Import):
+                imported = [alias.name for alias in node.names]
+            elif node.level:
+                imported = ["a relative import, which escapes this check"]
+            else:
+                imported = [node.module or ""]
+            for name in imported:
+                reaches = name.startswith("forecast_lab") and name not in allowed
+                if reaches or name.startswith("a relative"):
+                    offenders.append(f"{where}:{node.lineno} -> {name}")
+
+    assert not offenders, (
+        "every module under interfaces/ except the composition root runs the CLI as a "
+        f"subprocess and may not import the analysis layer (ADR-005 sec. 1). Found: {offenders}"
+    )
+
+
+@pytest.mark.unit
+def test_a_new_module_under_interfaces_is_denied_by_default() -> None:
+    """The property that makes the guard above worth having.
+
+    A file nobody thought about - `pages/verdict.py`, most plausibly - gets an empty
+    allow-list rather than being skipped, so its first import from the package fails the
+    gate instead of passing unseen.
+    """
+    known = set(DASHBOARD_IMPORTS) | set(ENTRY_POINTS)
+    present = {
+        m.relative_to(SRC).as_posix()
+        for m in INTERFACES.rglob("*.py")
+        if m.name != "__init__.py"
+    }
+    unlisted = {p for p in present if not any(p.endswith(k) for k in known)}
+
+    assert not unlisted, (
+        f"{sorted(unlisted)} is under interfaces/ and not in DASHBOARD_IMPORTS. Add it "
+        "with the imports it is allowed, rather than letting the guard skip it."
+    )
+
+
+@pytest.mark.unit
+def test_the_dashboard_cannot_run_a_command_that_writes() -> None:
+    """ADR-005 sec. 4: read-only commands only.
+
+    Asserted against the allow-list itself rather than against behaviour, because the
+    failure this guards against is someone adding `fetch` to it for a convenience button.
+    """
+    from forecast_lab.interfaces.runner import JSON_CAPABLE, READ_ONLY, WRITING
+
+    assert {"fetch", "ingest"} == WRITING
+    assert not (READ_ONLY & WRITING), "a writing command reached the allow-list"
+    assert JSON_CAPABLE <= READ_ONLY, "a JSON-capable command is not in the allow-list"

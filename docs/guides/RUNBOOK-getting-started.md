@@ -21,9 +21,9 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `377 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 10).
+Expect `453 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 11).
 
-**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 11.
+**Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 12.
 
 ## 2. Getting data onto disk
 
@@ -149,7 +149,7 @@ Eight PNGs, four per block. Start with `edge-<block>.png`: every configuration a
 
 **The output is byte-reproducible.** Running it twice on the same data gives an identical `--json` payload, hash for hash. That is deliberate, and it doubled the command's runtime: `Random Forest` is fitted single-threaded, because summing 100 tree votes across cores lands on a different last bit each run. If you ever see the hashes differ, something is wrong - start there rather than with the numbers.
 
-If a model cannot be loaded, the command prints it and continues - see sec. 11 for the reason that happens on Windows.
+If a model cannot be loaded, the command prints it and continues - see sec. 12 for the reason that happens on Windows.
 
 ## 8. Scoring across the whole history
 
@@ -203,7 +203,46 @@ The verdict to expect: **a real directional edge, worth less than nothing.** Nin
 
 **What the verdict does not settle**, and the command says so on its last line: slippage, the rollover surcharge and the overnight swap are unmodelled. Each raises the bar, so they cannot rescue a negative result - but a positive one would have needed them first.
 
-## 10. The network tests
+## 10. The dashboard
+
+```
+uv sync --extra dashboard
+uv run forecast-lab dashboard
+uv run forecast-lab dashboard --port 8080 --headless
+```
+
+Seven pages, each running the same commands you have been running and printing the command
+line beside the result. Nothing here is a second implementation: `runner.py` imports
+nothing from the package at all and `dashboard.py` imports only `runner`, which two guards
+in the layering suite enforce ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md)).
+
+**The command resolves the script beside itself**, so it runs from any directory and
+from an installed package rather than only from the repository root - and it invokes
+`python -m streamlit` rather than the `streamlit` console script, for the same reason
+sec. 1 uses `python -m mypy`: Smart App Control blocks unsigned shims. The dashboard
+handles the equivalent problem for its own entry point automatically - if
+`forecast-lab.exe` is blocked, it falls back to `python -m` and the command lines on
+screen show that form.
+
+**`forecast-lab dashboard` cannot be reached from inside the page.** It serves the page;
+running it from a panel would start a server that starts a server, so the runner refuses
+it by name.
+
+**It is read-only.** `fetch` and `ingest` are refused by the runner itself, not merely
+absent from the interface, so a page a stranger can load cannot start a download or
+overwrite `data/` (ADR-005 sec. 4).
+
+**The Verdict page is the slow one.** It runs `validate` and `verdict` end to end - about
+two minutes over six configurations, four over eighteen. The sidebar's **Configurations**
+control chooses: eighteen matches the published figures, six is raw features only and three
+times faster. Results are cached on the manifest hash, so a second visit is instant and a
+`fetch` invalidates everything.
+
+**If a panel reports a failure, read the command line under it and run that.** The page is
+those commands, so anything it cannot do you can reproduce in a terminal in one paste - which
+is the whole point of showing the line.
+
+## 11. The network tests
 
 Excluded from the gates so the default run is hermetic - no network, any OS, fast. They hold the venue to its side of the contract: that hourly bars still open exactly on the hour (the invariant the whole alignment design rests on), that both sides combine into a positive spread, and that every mapped instrument still exists.
 
@@ -213,7 +252,7 @@ uv run python -m pytest -m network
 
 Run them when the data source misbehaves or before trusting a fresh `fetch`.
 
-## 11. When something fails
+## 12. When something fails
 
 **`DLL load failed ... an application control policy blocked this file`** - Windows Smart App Control blocking an unsigned binary extension. Two forms:
 
@@ -250,7 +289,7 @@ Checked on the real case: extending the sample by 52 bars moved the count of con
 
 **The OneDrive exports fail to read** - Files On-Demand leaves placeholder stubs on disk. Open the folder in Explorer and let it hydrate before pointing `ingest --from` at it.
 
-## 12. What is not built yet
+## 13. What is not built yet
 
 `verdict` is where the pipeline stops, and the research question is answered: a real directional edge, worth less than nothing. Nine of eighteen configurations survive Holm; none makes money.
 
@@ -258,4 +297,3 @@ Three things are still owed, each named in [ADR-011](../adr/ADR-011-power-before
 
 - **A single `FINDINGS` document** a reader can land on instead of assembling the answer from thirteen ADRs and eight STATUS logs.
 - **The gap benchmark.** Price rises through the venue's pauses 56-59% of the time, which clears 53.49% on its face - but those are exactly the hours that pay overnight financing. Until the swap is modelled, it stays a measurement rather than a strategy.
-- **The dashboard** ([ADR-005](../adr/ADR-005-the-dashboard-runs-the-cli.md), still Plan).

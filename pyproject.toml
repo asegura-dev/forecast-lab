@@ -34,6 +34,12 @@ dependencies = [
     "arch>=8.0.0",
 ]
 
+# Optional, because the dashboard is one entry point and Streamlit brings tornado and
+# pyarrow with it. `uv sync` stays light for the CLI, which is what the gates run and what
+# every published figure comes from; `uv sync --extra dashboard` adds the page.
+[project.optional-dependencies]
+dashboard = ["streamlit>=1.40"]
+
 # The composition root: the only place allowed to import concrete adapters and to
 # touch the filesystem or the network (ADR-001 sec. 1).
 [project.scripts]

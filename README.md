@@ -178,6 +178,19 @@ project's exports; they are read once and never feed the engine:
 uv run forecast-lab ingest --from <path to the exports>
 ```
 
+And the dashboard, which runs those same commands as subprocesses and prints each one
+beneath the result it produced:
+
+```bash
+uv sync --extra dashboard
+uv run forecast-lab dashboard
+```
+
+Seven pages over the CLI, importing nothing from `research` - a rule two layering guards
+enforce, because a dashboard that could call the analysis directly would eventually compute
+a number differently from the terminal, and the copy that drifts is the one nobody runs the
+gates against ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md)).
+
 The three quality gates, which every change must leave green:
 
 ```bash
@@ -200,7 +213,7 @@ Written as a research book: each document exists because a decision was made, an
 | [ADR-002](docs/adr/ADR-002-data-source-and-symbol-set.md) | The data source and the symbol set |
 | [ADR-003](docs/adr/ADR-003-target-anchored-alignment.md) | The target's bars are the timeline, and nothing may extend it |
 | [ADR-004](docs/adr/ADR-004-labels-splits-and-baselines.md) | What a bar's answer is, where the boundaries fall, and what a model must beat |
-| [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) | The dashboard runs the CLI rather than reimplementing it (**Plan**) |
+| [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) | The dashboard runs the CLI rather than reimplementing it |
 | [ADR-006](docs/adr/ADR-006-features-and-stationarity.md) | Indicators before alignment, and no column that carries a price |
 | [ADR-007](docs/adr/ADR-007-fitting-models-without-leaking.md) | Fitting on train, selecting on validation, scoring test once |
 | [ADR-008](docs/adr/ADR-008-figures-are-built-in-memory.md) | Figures are built in memory and committed as PNG |
@@ -221,7 +234,7 @@ Written as a research book: each document exists because a decision was made, an
 
 ## Status
 
-The pipeline runs end to end and now answers the question it was built to answer: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, fitted, priced against the venue's own spread, and scored across nine years of history with a stated detection floor. The significance battery is done and the verdict is stated. What remains is presentation: a single `FINDINGS` document a reader can land on, and the dashboard ([ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), still Plan). The order was deliberate: the original went wrong before any model was fitted, so the corrections came first.
+The pipeline runs end to end and now answers the question it was built to answer: data in, verified, onto one timeline without a fabricated row, labelled, split, turned into features that carry no price level, fitted, priced against the venue's own spread, and scored across nine years of history with a stated detection floor. The research question is answered, the verdict is stated in [FINDINGS](FINDINGS.md), and the dashboard runs. What remains is the gap benchmark that has been owed since [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) - the only hypothesis this project has never tested - and a rewrite of the original technical report. The order was deliberate: the original went wrong before any model was fitted, so the corrections came first.
 
 - [x] Architecture, data source and symbol set decided and recorded
 - [x] Contracts, the layering guard, and the `symbols` command
@@ -237,8 +250,9 @@ The pipeline runs end to end and now answers the question it was built to answer
 - [x] Turnover and serial dependence measured rather than assumed, and the margin corrected
 - [x] The composition root under test, `--json` everywhere, and PCA scored across folds
 - [x] The significance battery, and the verdict it produces
+- [x] `FINDINGS`, and the dashboard that runs the CLI rather than reimplementing it
+- [ ] The gap benchmark against the overnight swap - the last untested hypothesis
 - [ ] The evaluation battery and the verdict
-- [ ] Dashboard (decided in [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md), built last)
 
 ## Origin and scope of the re-analysis
 
