@@ -1,0 +1,17 @@
+# The dashboard's palette. Committed because a page whose subject is a null result should
+# not arrive dressed as one selling a discovery, and because the same colours are used in
+# the chart specifications (`interfaces/presentation.py`) - a theme file and a spec that
+# disagreed would be worse than neither.
+[theme]
+base = "light"
+primaryColor = "#2e7d5b"          # the accent, matching POSITIVE in presentation.py
+backgroundColor = "#fbfbfa"       # paper rather than white
+secondaryBackgroundColor = "#f0f2f4"
+textColor = "#2b3a4a"             # INK
+font = "serif"                    # a research log, not a product
+
+[server]
+# The page reads the repository and runs read-only commands; it never needs to receive a
+# file. Stated rather than left at the default, because ADR-005 sec. 4 makes "the dashboard
+# does not write" a decision rather than an accident.
+maxUploadSize = 1

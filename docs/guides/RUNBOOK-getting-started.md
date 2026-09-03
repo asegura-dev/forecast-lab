@@ -21,7 +21,7 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `453 passed, 15 deselected`. The 15 are the network tests, opt-in by design (see sec. 11).
+Expect `463 passed, 18 deselected`. The 18 are opt-in by design: fifteen network tests (sec. 11) and three dashboard pages that spawn the analysis commands - `pytest -m slow` runs those, and one of them takes four minutes.
 
 **Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 12.
 
@@ -229,8 +229,12 @@ running it from a panel would start a server that starts a server, so the runner
 it by name.
 
 **It is read-only.** `fetch` and `ingest` are refused by the runner itself, not merely
-absent from the interface, so a page a stranger can load cannot start a download or
-overwrite `data/` (ADR-005 sec. 4).
+absent from the interface - and so is any option that writes, such as `--figures`. A page
+a stranger can load cannot start a download or overwrite `data/` (ADR-005 sec. 4).
+
+**Tables render as a sortable grid where `pyarrow` loads and as Markdown where it does
+not**, which on Windows depends on whether Smart App Control has let the native library
+through yet. Nothing to configure; the page probes once and picks.
 
 **The Verdict page is the slow one.** It runs `validate` and `verdict` end to end - about
 two minutes over six configurations, four over eighteen. The sidebar's **Configurations**

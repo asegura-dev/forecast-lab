@@ -25,6 +25,26 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-02 - The dashboard, made worth looking at
+
+### Fixed
+
+- **A claim published two days ago was wrong.** [ADR-005](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) said `pyarrow` "stayed blocked across five retries" and, unlike a `.pyd`, does not clear. It cleared - not with retries but with days. The mechanism is binary **reputation**, which accrues with a release's age, and this repository had already recorded it for LightGBM and XGBoost without connecting the two. Corrected in the ADR and in the module that carried the same sentence.
+
+### Added
+
+- **Tables choose their renderer at run time.** `arrow_available()` probes once per process: a sortable `st.dataframe` where the native library loads, the Markdown table where it does not. Both format through `presentation`, so they cannot disagree about how a p-value is written. The fallback is tested by forcing the probe to fail, since this machine can no longer reach it.
+- **Chart specifications in `presentation`**, because a Vega-Lite spec is a dict - pure data, testable without a browser. `dashboard` only draws them. Every spec is layered so its data stays off Arrow's path, and **a test asserts that property** rather than a comment claiming it.
+- **The chart this project did not have.** Sixteen committed PNGs cover the earlier commands and **none covers `validate` or `verdict`**. The Verdict page now draws the finding in one image: skill on one axis, money on the other, every configuration right of zero and below it - a real edge that costs more to collect than it is worth.
+- **Fold stability**, one line per configuration across the five folds, with the coin flip ruled. How far the answer moves between regimes was in the payload and on no page.
+- **A committed theme** (`.streamlit/config.toml`) sharing its palette with the chart specifications, so a theme file and a spec cannot disagree about what "this survived" looks like.
+- **Tabs on Models** for validation and test, with the edge bars beside each table; figures in columns rather than stacked.
+
+### Changed
+
+- **Three page tests are marked `slow`** and excluded from the default gate, which is back to 55 seconds. They spawn the analysis commands and one takes four minutes; `pytest -m slow` opts in, exactly as `-m network` already did.
+- **A widget conflict fixed before it became a defect**: seeding a keyed selectbox with `index=` while `keep_controls` writes the same key is ambiguous to Streamlit. The default is now seeded once into session state instead.
+
 ## 2026-08-31 - The dashboard, audited and rebuilt
 
 Four independent reviews of the page built earlier the same day returned **21 confirmed defects**. Three were in guards and tests written to prevent exactly what they failed to prevent, and those are the ones this entry leads with.
@@ -43,7 +63,8 @@ Four independent reviews of the page built earlier the same day returned **21 co
 - **Three figures were typed into the page** that the same panel already fetched - including "nine of eighteen" while the Verdict page computed thirteen. A string literal is worse than a second implementation: the cache cannot expire a sentence.
 - **Sidebar choices were lost** on the way to a document page, so a reader returned to a dataset they had not picked. Keying the widgets was not enough - Streamlit discards the state of a control a run does not instantiate.
 - **The break-even changed basis silently** on `data/reference`, which carries no spread column. `costs.source` said so and the page never rendered it.
-- **The copyable command line carried `dataaw`**, which bash reads as `dataraw`.
+- **The copyable command line carried `data
+aw`**, which bash reads as `dataraw`.
 - **`cwd` was never set**, so launching the server from any other directory left every panel failing while the page looked healthy. Testing that the server *started* from elsewhere proved less than it appeared to.
 - Plus: failures were never cached and re-spawned on every click; the payload parser cut at the first `[`, reachable through `[WinError 126]`; `stderr or stdout` let a stray warning hide the real reason; the timeframe list was hard-coded while the symbol list was read off disk; `Mode` appeared on pages that ignore it; and `validate` and `verdict` disagreed on `--pca`, putting a six-row table above an eighteen-row one.
 

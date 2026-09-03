@@ -104,11 +104,14 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# The gates stay hermetic: anything touching the network is opt-in.
-addopts = ["-m", "not network"]
+# The gates stay hermetic and quick: anything touching the network is opt-in, and so is
+# anything that fits models behind a browser harness. A suite nobody waits for is a
+# suite nobody runs.
+addopts = ["-m", "not network and not slow"]
 markers = [
     "unit: engine unit tests (fast, no external I/O)",
     "smoke: end-to-end pipeline over the synthetic fixture",
     "regression: tests that pin a previously fixed bug",
     "network: hits Dukascopy's public CDN; opt-in via `pytest -m network`",
+    "slow: renders a dashboard page that fits models; opt-in via `pytest -m slow`",
 ]

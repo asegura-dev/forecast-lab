@@ -10,16 +10,24 @@ Every test here runs with no Streamlit, no subprocess and no data.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from forecast_lab.interfaces.presentation import (
+    NEGATIVE,
+    POSITIVE,
     SCIENTIFIC_BELOW,
     Style,
     accuracy,
+    bar_spec,
+    carries_no_top_level_data,
     cell,
+    lines_spec,
     markdown_table,
     percent,
     rows_from,
+    scatter_spec,
     shell_path,
     significance,
 )
@@ -171,3 +179,133 @@ def test_a_posix_path_is_left_alone() -> None:
     line = "forecast-lab align --dir data/raw --json"
 
     assert shell_path(line) == line
+
+
+# --- chart specifications ------------------------------------------------------------------
+
+
+#: Enough of a verdict payload to build every chart from.
+CONFIGURATIONS = [
+    {
+        "configuration": "HistGradientBoosting [raw]",
+        "skill": 0.0114,
+        "money": -2.795,
+        "survives": True,
+    },
+    {
+        "configuration": "Logistic Regression [raw]",
+        "skill": 0.0038,
+        "money": -1.967,
+        "survives": False,
+    },
+]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "spec",
+    [
+        bar_spec(CONFIGURATIONS, category="configuration", value="skill", rule=0.0),
+        scatter_spec(
+            CONFIGURATIONS, x="skill", y="money", label="configuration", highlight="survives"
+        ),
+        lines_spec(
+            [{"fold": 1, "accuracy": 0.51, "configuration": "a"}],
+            x="fold",
+            y="accuracy",
+            series="configuration",
+            rule=0.5,
+        ),
+    ],
+)
+def test_no_spec_puts_its_data_where_streamlit_would_marshal_it(spec: dict[str, Any]) -> None:
+    """The property that lets these render where `pyarrow` is unavailable.
+
+    Streamlit pulls a spec's **top-level** `data` and `datasets` through Arrow. A layered
+    spec carries data on its children instead. This is asserted rather than commented,
+    because the comment was true and unverifiable and the difference showed up as a blank
+    page on the machine this was built on.
+    """
+    assert carries_no_top_level_data(spec)
+    assert spec["layer"], "a layer is what moves the data off the top level"
+    assert all("data" in view for view in spec["layer"])
+
+
+@pytest.mark.unit
+def test_a_reference_line_is_a_layer_of_its_own() -> None:
+    """So the rule has its own one-row dataset rather than being encoded into the bars."""
+    spec = bar_spec(CONFIGURATIONS, category="configuration", value="skill", rule=0.0)
+
+    assert len(spec["layer"]) == 2
+    assert spec["layer"][1]["mark"]["type"] == "rule"
+    assert spec["layer"][1]["data"]["values"] == [{"at": 0.0}]
+
+
+@pytest.mark.unit
+def test_a_chart_without_a_rule_has_one_layer() -> None:
+    assert len(bar_spec(CONFIGURATIONS, category="configuration", value="skill")["layer"]) == 1
+
+
+@pytest.mark.unit
+def test_the_scatter_rules_both_axes() -> None:
+    """Skill on one axis and money on the other, with zero marked on each - which is the
+    whole finding: right of one line, below the other."""
+    spec = scatter_spec(CONFIGURATIONS, x="skill", y="money", label="configuration")
+
+    axes = {next(iter(view["encoding"])) for view in spec["layer"][1:]}
+    assert axes == {"x", "y"}
+
+
+@pytest.mark.unit
+def test_the_highlight_colours_by_a_boolean_field() -> None:
+    spec = scatter_spec(
+        CONFIGURATIONS, x="skill", y="money", label="configuration", highlight="survives"
+    )
+
+    condition = spec["layer"][0]["encoding"]["color"]["condition"]
+    assert condition["test"] == "datum['survives']"
+    assert condition["value"] == POSITIVE
+
+
+@pytest.mark.unit
+def test_bars_are_coloured_by_sign_rather_than_by_category() -> None:
+    """A negative edge and a positive one must not look alike on a page about whether an
+    edge exists."""
+    encoding = bar_spec(CONFIGURATIONS, category="configuration", value="skill")["layer"][0][
+        "encoding"
+    ]
+
+    assert encoding["color"]["condition"]["value"] == POSITIVE
+    assert encoding["color"]["value"] == NEGATIVE
+
+
+@pytest.mark.unit
+def test_every_spec_carries_a_tooltip() -> None:
+    """Eighteen points on a scatter are unreadable without one."""
+    for spec in (
+        bar_spec(CONFIGURATIONS, category="configuration", value="skill"),
+        scatter_spec(CONFIGURATIONS, x="skill", y="money", label="configuration"),
+        lines_spec(
+            [{"fold": 1, "accuracy": 0.5, "configuration": "a"}],
+            x="fold",
+            y="accuracy",
+            series="configuration",
+        ),
+    ):
+        assert spec["layer"][0]["encoding"]["tooltip"]
+
+
+@pytest.mark.unit
+def test_a_fold_axis_is_ordinal_and_the_accuracy_axis_does_not_force_zero() -> None:
+    """Five folds are categories, not a quantity; and an accuracy scale anchored at zero
+    would compress every difference this project is about into nothing."""
+    spec = lines_spec(
+        [{"fold": 1, "accuracy": 0.51, "configuration": "a"}],
+        x="fold",
+        y="accuracy",
+        series="configuration",
+    )
+    encoding = spec["layer"][0]["encoding"]
+
+    assert encoding["x"]["type"] == "ordinal"
+    assert encoding["y"]["scale"]["zero"] is False

@@ -67,7 +67,21 @@ The claim of 0.8 seconds understated it by more than three times, and it pointed
 
 **A consequence of that, visible on screen:** where the shim is blocked, the command line each panel displays is the `python -m` form. It is the same entry point and is what a reader on that machine would have to type, so sec. 2's claim survives - the line shown is the line that ran.
 
-**Tables are rendered as Markdown, not through `st.dataframe`.** Both `st.dataframe` and `st.table` serialise through Arrow, and `pyarrow` ships a native library that the same application-control policy blocks outright - and unlike a `.pyd`, which clears after a few attempts, it stayed blocked across five. Markdown costs the sortable grid and buys a page that renders, tables that paste into a document, and one fewer native dependency for what is fundamentally text. The largest result set here is eighteen rows.
+**Tables choose their renderer at run time**, and the reason is a correction.
+
+The first version said this: *"`pyarrow` ships a native library that the same
+application-control policy blocks outright - and unlike a `.pyd`, which clears after a few
+attempts, it stayed blocked across five."* **That was true of five retries and false of two
+days.** The library imports now. The mechanism is binary *reputation*, which accrues with a
+release's age - already recorded in this repository for LightGBM and XGBoost, and not
+connected to this case at the time.
+
+So neither state is assumed. `arrow_available()` probes once per process: where it answers
+yes the page renders a sortable `st.dataframe`, where it answers no it falls back to the
+Markdown table. Both paths format through `presentation`, so the two cannot disagree about
+how a p-value is written - which is the failure that made the module split necessary in the
+first place. The fallback is tested by forcing the probe to fail, because this machine can
+no longer exercise it.
 
 **The page is launched the way everything else here is run: `forecast-lab dashboard`.**
 Not in the original decision, and the omission was visible the moment it shipped - every
@@ -149,5 +163,33 @@ return strings made it a three-line unit test.
 
 *The rule that follows:* a number's format follows from what it *means*, so a caller names the
 meaning (`Style.SIGNIFICANCE`, `Style.PERCENT`) and never the precision.
+
+## Charts, and where a chart specification belongs
+
+A Vega-Lite specification is a dict - **pure data** - so building one is not rendering, and
+it lives in `presentation` beside the formatting where a test can check it without a
+browser. `dashboard` only draws what it is handed.
+
+*Why that matters here more than usual:* every spec is wrapped in a `layer`. Streamlit
+marshals a spec's **top-level** `data` and `datasets` through Arrow; a layered spec carries
+its data on the children, where the marshaller does not look, so the whole thing is
+serialised as plain JSON and drawn client-side. On a machine where the native library is
+blocked, that is the difference between a chart and a blank page - and it is asserted by a
+test rather than trusted to a comment, because the comment was true and unverifiable.
+
+**The chart the project did not have.** `train --figures` and `explore --figures` write
+sixteen committed PNGs, and **none of them covers `validate` or `verdict`** - no command
+produced those numbers until this month. The Verdict page now draws the one image the whole
+finding reduces to: skill on one axis, money on the other, every configuration to the right
+of zero and below it. A real edge that costs more to collect than it is worth, in a single
+picture rather than two tables a reader has to hold in their head at once.
+
+**A theme is committed** (`.streamlit/config.toml`), and its palette is the one
+`presentation` uses for charts. Two files that disagreed about what "this survived" looks
+like would be worse than neither.
+
+**Three page tests are marked `slow` and excluded from the default gate.** They spawn the
+analysis commands, and the verdict page takes four minutes. A suite nobody waits for is a
+suite nobody runs; `pytest -m slow` opts in, exactly as `-m network` already did.
 
 **If this turns out to be wrong, the exit is visible.** The failure condition is a panel that genuinely needs an interactive object rather than a result - a live-refitting model, a slider that re-runs a fit at each tick. If that arrives, the answer is a new command that takes the parameter, not an import. If *that* stops working, this ADR gets superseded and the reason gets written down, which is the point of recording the decision at Plan status now.

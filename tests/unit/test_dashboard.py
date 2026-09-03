@@ -10,6 +10,11 @@ next page contradicted, and sidebar state that vanished on the way to another pa
 default install heavier. The gates run `uv sync` without the extra; a machine that has it
 gets these too.
 
+**Three of them are marked `slow`** and excluded from the default run: they spawn the
+analysis commands, which fit models, and one takes four minutes. Opt in with
+`pytest -m slow`. The rest render documents and finish in under a second, which is what
+keeps the gate worth running on every change.
+
 **Deliberately not asserted here:** research numbers. Those belong to the modules that
 compute them, and the payload contract lives in `test_cli.py`. These check that the page
 *renders* - which is the only thing `runner` and `presentation` cannot check for it.
@@ -17,7 +22,10 @@ compute them, and the payload contract lives in `test_cli.py`. These check that 
 
 from __future__ import annotations
 
+import importlib.util
+import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -140,6 +148,7 @@ def test_the_mode_control_appears_only_where_the_command_takes_it() -> None:
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 def test_every_command_shown_would_survive_a_paste_into_a_shell() -> None:
     """ADR-005 sec. 2 promises a copyable line; `data\\raw` is `dataraw` in bash."""
     app = _app(timeout=300).run()
@@ -155,6 +164,7 @@ def test_every_command_shown_would_survive_a_paste_into_a_shell() -> None:
 
 
 @pytest.mark.unit
+@pytest.mark.slow
 def test_the_data_page_renders_the_output_of_the_commands_it_runs() -> None:
     """Three agents found this independently: `verify` and `symbols` have no `--json`, so
     `run()` returns their rendered text - and both call sites discarded it, leaving two of
@@ -170,3 +180,65 @@ def test_the_data_page_renders_the_output_of_the_commands_it_runs() -> None:
     assert any(
         text.startswith(("OK", "CHANGED")) or "manifest" in text for text in rendered
     ), "the verify report is missing"
+
+
+# --- rendering on a machine that cannot use Arrow ---------------------------------------
+
+
+@pytest.mark.unit
+def test_a_table_falls_back_to_markdown_when_arrow_is_unavailable(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    """The path this machine cannot exercise today, and could two days ago.
+
+    `pyarrow` ships a native library that Windows Smart App Control blocked until the
+    release accrued reputation. An earlier version of this project concluded from five
+    retries that it never clears; it cleared overnight. So neither state is assumed - the
+    capability is probed, and both branches have to work.
+    """
+    from forecast_lab.interfaces import dashboard
+
+    def _blocked(_name: str) -> None:
+        raise OSError("blocked by an application control policy")
+
+    dashboard.arrow_available.cache_clear()
+    # Patched on `importlib.util` itself rather than reached through the module under test,
+    # which would require re-exporting an import just to make a test type-check.
+    monkeypatch.setattr(importlib.util, "find_spec", _blocked)
+    try:
+        assert dashboard.arrow_available() is False
+    finally:
+        dashboard.arrow_available.cache_clear()
+
+
+@pytest.mark.unit
+def test_the_capability_is_probed_rather_than_assumed() -> None:
+    """Whichever way it answers on this machine, it must answer from a probe."""
+    from forecast_lab.interfaces.dashboard import arrow_available
+
+    assert isinstance(arrow_available(), bool)
+
+
+@pytest.mark.unit
+@pytest.mark.slow
+def test_the_verdict_page_draws_the_finding_rather_than_only_tabulating_it() -> None:
+    """The scatter is the one image no committed figure covers, because no command
+    produced it until `verdict` did: skill on one axis, money on the other, every
+    configuration to the right of zero and below it."""
+    app = _app(timeout=1200).run()
+    app.sidebar.radio[0].set_value("Verdict").run()
+    app.sidebar.selectbox("breadth").set_value("6 - raw features only, faster").run()
+
+    assert not app.exception, [str(e.message) for e in app.exception]
+    charts = app.get("vega_lite_chart")
+    assert len(charts) >= 3, "expected fold stability, the scatter, and the edge bars"
+
+    marks: set[str] = set()
+    for element in charts:
+        raw: Any = getattr(element, "spec", None)
+        spec: dict[str, Any] = raw if isinstance(raw, dict) else json.loads(raw)
+        # Every chart keeps its data off the top level, so a blocked Arrow cannot blank it.
+        assert "data" not in spec and "datasets" not in spec
+        for view in spec["layer"]:
+            mark = view["mark"]
+            marks.add(mark if isinstance(mark, str) else mark["type"])
+
+    assert {"point", "line", "bar", "rule"} <= marks

@@ -30,7 +30,9 @@ on every widget click.
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -39,10 +41,13 @@ import streamlit as st
 from forecast_lab.interfaces.presentation import (
     Style,
     accuracy,
+    bar_spec,
     cell,
+    lines_spec,
     markdown_table,
     percent,
     rows_from,
+    scatter_spec,
     shell_path,
     significance,
 )
@@ -182,10 +187,48 @@ def text_panel(invocation: Invocation, *, success_marker: str | None = None) -> 
 # --- rendering helpers -------------------------------------------------------------------
 
 
+@lru_cache(maxsize=1)
+def arrow_available() -> bool:
+    """Whether `st.dataframe` can render on this machine.
+
+    It could not, for two days: `pyarrow` ships a native library and Windows Smart App
+    Control blocks an unsigned binary until its release has accrued reputation. An earlier
+    version of this project concluded from five retries that it never clears; it cleared
+    overnight, which is the same mechanism already recorded for LightGBM and XGBoost.
+
+    So the capability is *probed* rather than assumed in either direction, once per process.
+    """
+    # `find_spec` rather than an import: it raises the same OSError when the policy
+    # blocks the native library, and it does not drag an untyped module into a
+    # `mypy --strict` run for a capability probe.
+    try:
+        return importlib.util.find_spec("pyarrow") is not None
+    except (ImportError, OSError, ValueError):
+        return False
+
+
 def table(rows: list[dict[str, Any]], styles: dict[str, str] | None = None) -> None:
-    """Draw what `presentation.markdown_table` formats."""
-    rendered = markdown_table(rows, styles)
-    st.markdown(rendered) if rendered else st.caption("Nothing to show.")
+    """A sortable grid where the machine can render one, a Markdown table where it cannot.
+
+    Both paths format through `presentation`, so the two cannot disagree about how a
+    p-value is written - which is the failure that made this module split necessary.
+    """
+    if not rows:
+        st.caption("Nothing to show.")
+        return
+    styles = styles or {}
+    if not arrow_available():
+        st.markdown(markdown_table(rows, styles))
+        return
+    # Pre-formatted strings rather than column_config: the formatting rules live in one
+    # place, and a sortable grid over strings still sorts a percentage column correctly
+    # because they share a width.
+    st.dataframe(
+        [{column: cell(row.get(column), styles.get(column, Style.TEXT)) for column in rows[0]}
+         for row in rows],
+        width="stretch",
+        hide_index=True,
+    )
 
 
 def figure(name: str, caption: str) -> None:
@@ -202,33 +245,15 @@ def figure(name: str, caption: str) -> None:
     st.image(str(path), caption=f"{caption} - committed figure, pinned to the 2026-08-26 snapshot")
 
 
-def bar_chart(rows: list[dict[str, Any]], *, x: str, y: str, rule: float | None = None) -> None:
-    """A Vega-Lite bar chart that does not touch Arrow.
+def chart(spec: dict[str, Any], caption: str | None = None) -> None:
+    """Draw a spec that `presentation` built.
 
-    Streamlit marshals a spec's **top-level** `data` through pyarrow, which this machine's
-    application-control policy blocks. Wrapping the view in a single-element `layer` puts
-    `data` on the child, where the marshaller does not look, and the spec is serialised as
-    plain JSON and drawn client-side. Verified against Streamlit 1.62's `vega_charts.py`.
+    The spec is a dict, so building one is pure data and lives beside the formatting where
+    a test can check it - including the property that keeps it off the Arrow path.
     """
-    layers: list[dict[str, Any]] = [
-        {
-            "data": {"values": rows},
-            "mark": "bar",
-            "encoding": {
-                "y": {"field": x, "type": "nominal", "sort": "-x", "title": None},
-                "x": {"field": y, "type": "quantitative"},
-            },
-        }
-    ]
-    if rule is not None:
-        layers.append(
-            {
-                "data": {"values": [{"at": rule}]},
-                "mark": {"type": "rule", "color": "crimson", "strokeDash": [4, 4]},
-                "encoding": {"x": {"field": "at", "type": "quantitative"}},
-            }
-        )
-    st.vega_lite_chart({"layer": layers}, width="stretch")
+    st.vega_lite_chart(spec, width="stretch")
+    if caption:
+        st.caption(caption)
 
 
 def glossary(*terms: str) -> None:
@@ -268,10 +293,16 @@ def series_choice(directory: str) -> tuple[str, str] | None:
     if not symbols:
         st.sidebar.info(f"No series in `{directory}`.")
         return None
-    default = symbols.index("XAUUSD") if "XAUUSD" in symbols else 0
-    symbol = st.sidebar.selectbox("Target", symbols, index=default, key="symbol")
+    # Seeded once rather than passed as `index=`: a keyed widget that also carries a
+    # default is ambiguous to Streamlit, and `keep_controls` writes that key on every run.
+    if st.session_state.get("symbol") not in symbols:
+        st.session_state["symbol"] = "XAUUSD" if "XAUUSD" in symbols else symbols[0]
+    symbol = st.sidebar.selectbox("Target", symbols, key="symbol")
     intervals = sorted({f.stem.rsplit("_", 1)[1] for f in files if f.stem.startswith(f"{symbol}_")})
-    timeframe = st.sidebar.selectbox("Timeframe", intervals or ["1H"], key="timeframe")
+    choices = intervals or ["1H"]
+    if st.session_state.get("timeframe") not in choices:
+        st.session_state["timeframe"] = choices[0]
+    timeframe = st.sidebar.selectbox("Timeframe", choices, key="timeframe")
     return symbol, timeframe
 
 
@@ -410,11 +441,18 @@ def page_exploration(directory: str, symbol: str, timeframe: str) -> None:
             "up_share": Style.PERCENT,
         },
     )
-    bar_chart(
-        [{"year": r["year"], "up_share": float(r["up_share"])} for r in yearly],
-        x="year",
-        y="up_share",
-        rule=0.5,
+    chart(
+        bar_spec(
+            [
+                {"year": r["year"], "above a coin flip": float(r["up_share"]) - 0.5}
+                for r in yearly
+            ],
+            category="year",
+            value="above a coin flip",
+            rule=0.0,
+            title="share of rising bars, less one half",
+        ),
+        "Three points of drift across nine years - more than any effect being hunted.",
     )
     figure("eda-yearly.png", "The yearly breakdown")
 
@@ -496,8 +534,11 @@ def page_features(directory: str, symbol: str, timeframe: str, mode: str) -> Non
             "diagnostics and neither decides - with this many rows ADF rejects almost "
             "anything, and both are invalid under changing variance."
         )
-    figure("feature-correlations.png", "How the features correlate with each other")
-    figure("feature-redundancy.png", "Redundancy among the features")
+    left, right = st.columns(2)
+    with left:
+        figure("feature-correlations.png", "How the features correlate")
+    with right:
+        figure("feature-redundancy.png", "Redundancy among them")
     with st.expander("Raw payload"):
         st.json(payload, expanded=False)
 
@@ -534,36 +575,53 @@ def page_models(directory: str, symbol: str, timeframe: str, mode: str) -> None:
         "fell into."
     )
 
-    for block in ("validation", "test"):
-        st.subheader(f"Scored on {block}")
+    st.subheader("Every configuration, on each block")
+    st.caption(
+        "Selection happens on the left and the right is scored once, afterwards. Ordering "
+        "these tabs the other way round is what the original analysis did."
+    )
+    for block, tab in zip(("validation", "test"), st.tabs(["Validation", "Test"]), strict=True):
         rows = [s for s in payload["scores"] if s["block"] == block]
-        table(
-            [
+        with tab:
+            table(
+                [
+                    {
+                        "model": s["model"],
+                        "repr": s["representation"],
+                        "accuracy": s["accuracy"],
+                        "baseline": s["baseline_accuracy"],
+                        "edge": s["edge"],
+                        "auc": s["auc"],
+                        "brier": s["brier"],
+                        "predicted UP": s.get("predicted_up_rate"),
+                    }
+                    for s in sorted(rows, key=lambda s: -s["edge"])
+                ],
                 {
-                    "model": s["model"],
-                    "repr": s["representation"],
-                    "accuracy": s["accuracy"],
-                    "baseline": s["baseline_accuracy"],
-                    "edge": s["edge"],
-                    "auc": s["auc"],
-                    "brier": s["brier"],
-                    "predicted UP": s.get("predicted_up_rate"),
-                }
-                for s in sorted(rows, key=lambda s: -s["edge"])
-            ],
-            {
-                "accuracy": Style.PERCENT,
-                "baseline": Style.PERCENT,
-                "edge": Style.PERCENT,
-                "auc": Style.RATIO,
-                "brier": Style.RATIO,
-                "predicted UP": Style.PERCENT,
-            },
-        )
-        figure(
-            f"edge-{block}.png",
-            f"Every configuration against the rules it must beat, on {block}",
-        )
+                    "accuracy": Style.PERCENT,
+                    "baseline": Style.PERCENT,
+                    "edge": Style.PERCENT,
+                    "auc": Style.RATIO,
+                    "brier": Style.RATIO,
+                    "predicted UP": Style.PERCENT,
+                },
+            )
+            chart(
+                bar_spec(
+                    [
+                        {
+                            "configuration": f"{s['model']} [{s['representation']}]",
+                            "edge": s["edge"],
+                        }
+                        for s in rows
+                    ],
+                    category="configuration",
+                    value="edge",
+                    rule=0.0,
+                    title="edge over the constant predictor",
+                )
+            )
+            figure(f"edge-{block}.png", f"The committed chart for {block}")
 
     labels = payload["labels"]
     st.caption(
@@ -697,6 +755,26 @@ def _walk_forward(payload: dict[str, Any]) -> None:
         payload["scheme"]["blocks"],
         {"train_rows": Style.COUNT, "test_rows": Style.COUNT},
     )
+    chart(
+        lines_spec(
+            [
+                {
+                    "fold": fold["fold"],
+                    "accuracy": fold["accuracy"],
+                    "configuration": model["model"],
+                }
+                for model in payload["models"]
+                for fold in model["folds"]
+            ],
+            x="fold",
+            y="accuracy",
+            series="configuration",
+            rule=0.5,
+            y_title="accuracy on the fold's test block",
+        ),
+        "How far the answer moves between regimes. The spread is a description, never an "
+        "interval - the folds share training data, so they are not independent experiments.",
+    )
 
 
 def _significance(payload: dict[str, Any]) -> None:
@@ -729,14 +807,35 @@ def _significance(payload: dict[str, Any]) -> None:
         },
     )
     glossary("independent", "survives Holm", "cumulative")
-    bar_chart(
-        [
-            {"configuration": r["configuration"], "excess": float(r["excess"])}
-            for r in rows
-        ],
-        x="configuration",
-        y="excess",
-        rule=0.0,
+    chart(
+        scatter_spec(
+            [
+                {
+                    "configuration": r["configuration"],
+                    "skill": float(r["excess"]),
+                    "money": float(r["cumulative"]),
+                    "survives": bool(r["survives Holm"]),
+                }
+                for r in rows
+            ],
+            x="skill",
+            y="money",
+            label="configuration",
+            highlight="survives",
+            x_title="directional edge over independence",
+            y_title="cumulative return, net of costs",
+        ),
+        "The finding in one image: every configuration is to the **right** of zero on skill "
+        "and **below** zero on money. Green survives the correction for having tried them all.",
+    )
+    chart(
+        bar_spec(
+            [{"configuration": r["configuration"], "edge": float(r["excess"])} for r in rows],
+            category="configuration",
+            value="edge",
+            rule=0.0,
+            title="directional edge over independence",
+        )
     )
 
     multiplicity = payload["multiplicity"]

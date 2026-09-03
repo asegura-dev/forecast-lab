@@ -114,11 +114,16 @@ def markdown_table(
 ) -> str:
     """Render rows as a Markdown table, returning the string rather than drawing it.
 
-    Markdown rather than `st.dataframe` is forced rather than chosen: both Streamlit table
-    widgets serialise through Arrow, and `pyarrow` ships a native library that this
-    machine's application-control policy blocks outright - measured across five retries, it
-    does not clear the way a `.pyd` does. The consolation is real, though: a Markdown table
-    pastes into a document, and the largest result set here is eighteen rows.
+    The fallback for when `st.dataframe` cannot be used, and a decent thing in its own
+    right: a Markdown table pastes into a document, and the largest result set here is
+    eighteen rows.
+
+    **A correction worth keeping.** An earlier version of this docstring said `pyarrow`
+    "does not clear the way a `.pyd` does - measured across five retries". That was true of
+    five retries and false of two days: the library imports now. The mechanism is binary
+    *reputation*, which accrues with a release's age, and this project had already recorded
+    it for LightGBM and XGBoost. So Markdown is no longer forced - it is the fallback, and
+    `dashboard.table` picks whichever the machine can actually render.
 
     Returning a string is what makes the formatting testable at all.
     """
@@ -157,3 +162,163 @@ def shell_path(path: str) -> str:
     slashes work in both shells and in the CLI's own argument parsing.
     """
     return path.replace("\\", "/")
+
+
+# --- chart specifications ----------------------------------------------------------------
+
+#: The project's palette, kept in one place so a chart and a table cannot disagree about
+#: what "this survived" looks like. Restrained on purpose: two accents against a neutral,
+#: because a page about a null result should not look like a dashboard selling one.
+INK = "#2b3a4a"
+MUTED = "#8fa3b8"
+POSITIVE = "#2e7d5b"
+NEGATIVE = "#b3453a"
+RULE = "#c2452f"
+
+
+def _layered(*views: dict[str, Any]) -> dict[str, Any]:
+    """Wrap views in a `layer`, which is what keeps a chart off the Arrow path.
+
+    Streamlit marshals a spec's **top-level** `data` and `datasets` keys through pyarrow.
+    A layered spec carries its data on the children instead, where the marshaller does not
+    look, so the whole thing is serialised as plain JSON and drawn client-side. That matters
+    on a machine whose application-control policy blocks the native library - and it costs
+    nothing on one where it does not.
+    """
+    return {"layer": list(views), "config": {"axis": {"labelColor": INK, "titleColor": INK}}}
+
+
+def _rule(value: float, axis: str) -> dict[str, Any]:
+    return {
+        "data": {"values": [{"at": value}]},
+        "mark": {"type": "rule", "color": RULE, "strokeDash": [4, 4], "size": 1},
+        "encoding": {axis: {"field": "at", "type": "quantitative"}},
+    }
+
+
+def bar_spec(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    category: str,
+    value: str,
+    rule: float | None = None,
+    title: str | None = None,
+) -> dict[str, Any]:
+    """Horizontal bars, sorted by value, with an optional reference line.
+
+    Horizontal because the categories here are configuration names - "HistGradientBoosting
+    [pca-90]" is unreadable rotated.
+    """
+    views: list[dict[str, Any]] = [
+        {
+            "data": {"values": list(rows)},
+            "mark": {"type": "bar", "cornerRadiusEnd": 2},
+            "encoding": {
+                "y": {"field": category, "type": "nominal", "sort": "-x", "title": None},
+                "x": {"field": value, "type": "quantitative", "title": title or value},
+                "color": {
+                    "condition": {"test": f"datum['{value}'] >= 0", "value": POSITIVE},
+                    "value": NEGATIVE,
+                },
+                "tooltip": [
+                    {"field": category, "type": "nominal"},
+                    {"field": value, "type": "quantitative", "format": ".4f"},
+                ],
+            },
+        }
+    ]
+    if rule is not None:
+        views.append(_rule(rule, "x"))
+    return _layered(*views)
+
+
+def scatter_spec(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    x: str,
+    y: str,
+    label: str,
+    highlight: str | None = None,
+    x_title: str | None = None,
+    y_title: str | None = None,
+) -> dict[str, Any]:
+    """Two questions on two axes - the shape of this project's whole finding.
+
+    Skill on one axis and money on the other, every configuration a point. They sit to the
+    right of zero and below it: a real edge that costs more to collect than it is worth.
+    No committed figure covers this, because no command produced it until the verdict did.
+    """
+    encoding: dict[str, Any] = {
+        "x": {"field": x, "type": "quantitative", "title": x_title or x},
+        "y": {"field": y, "type": "quantitative", "title": y_title or y},
+        "tooltip": [
+            {"field": label, "type": "nominal"},
+            {"field": x, "type": "quantitative", "format": ".4f"},
+            {"field": y, "type": "quantitative", "format": ".2%"},
+        ],
+    }
+    if highlight:
+        encoding["color"] = {
+            "condition": {"test": f"datum['{highlight}']", "value": POSITIVE},
+            "value": MUTED,
+        }
+    return _layered(
+        {
+            "data": {"values": list(rows)},
+            "mark": {"type": "point", "filled": True, "size": 90, "opacity": 0.85},
+            "encoding": encoding,
+        },
+        _rule(0.0, "x"),
+        _rule(0.0, "y"),
+    )
+
+
+def lines_spec(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    x: str,
+    y: str,
+    series: str,
+    rule: float | None = None,
+    y_title: str | None = None,
+) -> dict[str, Any]:
+    """One line per series - how far an answer moves between folds.
+
+    The spread across folds is a description, never an interval: the folds share training
+    data, so they are not independent experiments and their variation is not a sampling
+    distribution.
+    """
+    views: list[dict[str, Any]] = [
+        {
+            "data": {"values": list(rows)},
+            "mark": {"type": "line", "point": {"size": 40}, "strokeWidth": 1.5},
+            "encoding": {
+                "x": {"field": x, "type": "ordinal", "title": x},
+                "y": {
+                    "field": y,
+                    "type": "quantitative",
+                    "title": y_title or y,
+                    "scale": {"zero": False},
+                },
+                "color": {"field": series, "type": "nominal", "title": None},
+                "tooltip": [
+                    {"field": series, "type": "nominal"},
+                    {"field": x, "type": "ordinal"},
+                    {"field": y, "type": "quantitative", "format": ".2%"},
+                ],
+            },
+        }
+    ]
+    if rule is not None:
+        views.append(_rule(rule, "y"))
+    return _layered(*views)
+
+
+def carries_no_top_level_data(spec: Mapping[str, Any]) -> bool:
+    """Whether a spec avoids the keys Streamlit routes through Arrow.
+
+    Exposed so a test can assert it rather than a comment claiming it. `data` and
+    `datasets` at the top level are the two the marshaller pulls out; anything nested
+    inside `layer` is left alone.
+    """
+    return "data" not in spec and "datasets" not in spec
