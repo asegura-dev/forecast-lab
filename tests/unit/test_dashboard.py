@@ -242,3 +242,38 @@ def test_the_verdict_page_draws_the_finding_rather_than_only_tabulating_it() -> 
             marks.add(mark if isinstance(mark, str) else mark["type"])
 
     assert {"point", "line", "bar", "rule"} <= marks
+
+
+# --- the record, rather than a run --------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_verdict_page_serves_the_published_result_instantly() -> None:
+    """The worst problem this page had: it re-ran everything.
+
+    Nine payloads sit committed under `docs/status/` - the ones FINDINGS and the STATUS
+    logs quote - and every panel spawned a subprocess anyway, two minutes for this page and
+    four with every configuration. The published path reads them, and each panel says which
+    file it came from so a reader can tell a committed figure from a fresh one.
+    """
+    app = _app(timeout=120).run()
+    app.sidebar.radio[0].set_value("Verdict").run()
+
+    assert not app.exception, [str(e.message) for e in app.exception]
+    committed = [c.value for c in app.caption if "Committed result" in c.value]
+    assert len(committed) >= 2, "both panels should come from the record"
+    assert any("verdict-canonical.json" in c for c in committed)
+    assert all("not recomputed now" in c for c in committed)
+    # And the numbers are the published ones.
+    assert any(m.value == "0 of 18" for m in app.metric)
+
+
+@pytest.mark.unit
+def test_a_series_with_no_committed_result_falls_back_to_running() -> None:
+    """The record covers gold at one hour. Offering the option elsewhere would promise
+    something every panel then failed to deliver, so it is withdrawn and said so."""
+    from forecast_lab.interfaces.dashboard import ROOT
+    from forecast_lab.interfaces.published import available_for
+
+    assert available_for(ROOT, target="XAUUSD", timeframe="1H")
+    assert not available_for(ROOT, target="SPX", timeframe="1H")

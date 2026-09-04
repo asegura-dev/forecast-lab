@@ -326,9 +326,11 @@ ENTRY_POINTS = ("interfaces/cli.py", "interfaces/__main__.py")
 DASHBOARD_IMPORTS: dict[str, set[str]] = {
     "interfaces/runner.py": set(),
     "interfaces/presentation.py": set(),
+    "interfaces/published.py": set(),
     "interfaces/dashboard.py": {
         "forecast_lab.interfaces.runner",
         "forecast_lab.interfaces.presentation",
+        "forecast_lab.interfaces.published",
     },
 }
 

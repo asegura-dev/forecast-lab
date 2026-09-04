@@ -51,6 +51,7 @@ from forecast_lab.interfaces.presentation import (
     shell_path,
     significance,
 )
+from forecast_lab.interfaces.published import Published, available_for, find
 from forecast_lab.interfaces.runner import Invocation, RunnerError, run
 
 #: Repository root, four levels up from this file.
@@ -137,8 +138,60 @@ def _invoke(
         return Outcome(error=str(exc))
 
 
-def execute(invocation: Invocation, *, label: str | None = None) -> Any | None:
-    """Run a command behind a spinner, render its line, and report a failure in place."""
+def option_of(invocation: Invocation, name: str) -> str | None:
+    """One option's value, for matching a request against a committed result."""
+    return next((value for key, value in invocation.options if key == name), None)
+
+
+def committed(invocation: Invocation) -> Published | None:
+    """The published result for exactly this request, if the repository has one."""
+    target = option_of(invocation, "--target")
+    timeframe = option_of(invocation, "--timeframe")
+    if not target or not timeframe:
+        return None
+    return find(
+        ROOT,
+        invocation.command,
+        target=target,
+        timeframe=timeframe,
+        mode=option_of(invocation, "--mode"),
+    )
+
+
+#: The sidebar's answer to "published or fresh", read where it is needed rather than
+#: threaded through five page signatures. Streamlit's session state is the framework's
+#: own idiom for this, and passing a boolean down every call would be noise that hides
+#: the one place it matters.
+PUBLISHED_FIRST = "published_first"
+
+
+def prefers_published() -> bool:
+    return bool(st.session_state.get(PUBLISHED_FIRST, True))
+
+
+def execute(
+    invocation: Invocation, *, label: str | None = None, prefer_published: bool | None = None
+) -> Any | None:
+    """Render one command's result, from the record or from a fresh run.
+
+    **The record is the nine payloads committed under `docs/status/`** - the ones the STATUS
+    logs and FINDINGS quote. The dashboard had them on disk and re-ran every command anyway,
+    which cost two minutes for a verdict page and four with every configuration, on numbers
+    that were already there.
+
+    Where a published result exists it is served instantly and **labelled as committed**,
+    because the hazard of offering both is a reader who cannot tell which they have. Where
+    none exists - another symbol, another mode - the panel runs the command and says so
+    rather than serving a near miss.
+    """
+    if prefer_published is None:
+        prefer_published = prefers_published()
+    if prefer_published:
+        entry = committed(invocation)
+        if entry is not None:
+            st.caption(entry.provenance)
+            command_line(invocation)
+            return entry.payload
     try:
         with st.spinner(label or f"Running `{invocation.display}`"):
             outcome = _invoke(
@@ -304,6 +357,31 @@ def series_choice(directory: str) -> tuple[str, str] | None:
         st.session_state["timeframe"] = choices[0]
     timeframe = st.sidebar.selectbox("Timeframe", choices, key="timeframe")
     return symbol, timeframe
+
+
+def source_choice(target: str, timeframe: str) -> None:
+    """Published results or a fresh run.
+
+    Offered only where the repository actually has a committed result for this series -
+    there are nine, all for gold at one hour, and offering the option on a symbol with none
+    would promise something every panel then failed to deliver.
+    """
+    if not available_for(ROOT, target=target, timeframe=timeframe):
+        st.session_state[PUBLISHED_FIRST] = False
+        st.sidebar.caption(
+            f"No committed result for {target} at {timeframe}, so every panel runs its "
+            "command. The published ones cover gold at one hour."
+        )
+        return
+    st.sidebar.selectbox(
+        "Results",
+        ("Published - instant", "Run now - live"),
+        key="source",
+        help="Published reads the payloads committed under `docs/status/` - the numbers the "
+        "STATUS logs and FINDINGS quote, pinned to the snapshot the manifest describes. "
+        "Run now recomputes, which takes two to four minutes on the Verdict page.",
+    )
+    st.session_state[PUBLISHED_FIRST] = st.session_state["source"].startswith("Published")
 
 
 def breadth_choice() -> bool:
@@ -884,7 +962,7 @@ def page_reasoning() -> None:
 #: instantiate - a key is not enough on its own - so the document pages, which build no
 #: controls, would silently reset the reader's dataset and symbol. Reassigning each key
 #: to itself on every run marks it as still wanted.
-CONTROLS = ("page", "dataset", "symbol", "timeframe", "mode", "breadth", "document")
+CONTROLS = ("page", "dataset", "symbol", "timeframe", "source", "mode", "breadth", "document")
 
 PAGES = ("Findings", "Data", "Exploration", "Features", "Models", "Verdict", "Reasoning")
 #: Pages that read a dataset; the rest render documents.
@@ -931,6 +1009,7 @@ def main() -> None:
     if series is None:
         return
     symbol, timeframe = series
+    source_choice(symbol, timeframe)
     mode = mode_choice() if choice in TAKES_MODE else "focus"
     pca = breadth_choice() if choice == "Verdict" else True
     st.sidebar.divider()

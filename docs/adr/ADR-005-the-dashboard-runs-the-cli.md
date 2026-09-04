@@ -192,4 +192,36 @@ like would be worse than neither.
 analysis commands, and the verdict page takes four minutes. A suite nobody waits for is a
 suite nobody runs; `pytest -m slow` opts in, exactly as `-m network` already did.
 
+## The record, and why it took a reader to notice
+
+Nine payloads are committed under `docs/status/` - the sidecars every STATUS log and
+FINDINGS quote. **The dashboard had them on disk and re-ran every command anyway**: two
+minutes for the Verdict page, four with every configuration, on numbers that were already
+there. Nobody had noticed because the panels *worked*; they were only slow, and slow is
+easy to accept from something that is computing.
+
+A sidebar control now offers **Published** or **Run now**. Published reads the sidecar and
+renders in **0.6 seconds** instead of two to four minutes.
+
+*Why this does not weaken sec. 1.* The published payload is the output of the same command,
+committed - not a second implementation, and not a number typed into the page. The panel
+still shows the command line, and adds which file the figure came from and when it was
+generated. Reading a recorded result is what a research log is *for*.
+
+*The rule that makes it safe:* a request is answered only by a payload whose own metadata
+agrees - same target, same timeframe, same mode. `find` returns nothing rather than the
+nearest thing, because serving gold's verdict to a reader who asked about the S&P would put
+a number under a caption that does not describe it, which is the failure this repository is
+a correction of arriving through a convenience. A test holds that.
+
+*Matched, not tabulated.* Each sidecar carries its own `target`, `timeframe` and `mode`, and
+which command wrote it is inferred from the sections only that command emits. A sidecar
+committed later for another symbol is found without editing any code - and the signatures
+are asserted against the real files, so a renamed key fails a gate rather than quietly
+making every panel slow again.
+
+*Where the record is silent, the option is withdrawn.* All nine cover gold at one hour. On
+any other series the control disappears and a caption says why, rather than offering
+something every panel then fails to deliver.
+
 **If this turns out to be wrong, the exit is visible.** The failure condition is a panel that genuinely needs an interactive object rather than a result - a live-refitting model, a slider that re-runs a fit at each tick. If that arrives, the answer is a new command that takes the parameter, not an import. If *that* stops working, this ADR gets superseded and the reason gets written down, which is the point of recording the decision at Plan status now.

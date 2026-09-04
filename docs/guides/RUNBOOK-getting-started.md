@@ -21,7 +21,7 @@ uv run python -m mypy --strict src tests
 uv run python -m pytest -q
 ```
 
-Expect `463 passed, 18 deselected`. The 18 are opt-in by design: fifteen network tests (sec. 11) and three dashboard pages that spawn the analysis commands - `pytest -m slow` runs those, and one of them takes four minutes.
+Expect `488 passed, 18 deselected`. The 18 are opt-in by design: fifteen network tests (sec. 11) and three dashboard pages that spawn the analysis commands - `pytest -m slow` runs those, and one of them takes four minutes.
 
 **Note the `python -m` in front of mypy and pytest.** It is not decoration - see sec. 12.
 
@@ -236,7 +236,13 @@ a stranger can load cannot start a download or overwrite `data/` (ADR-005 sec. 4
 not**, which on Windows depends on whether Smart App Control has let the native library
 through yet. Nothing to configure; the page probes once and picks.
 
-**The Verdict page is the slow one.** It runs `validate` and `verdict` end to end - about
+**Start on Published.** The sidebar's `Results` control chooses between the payloads
+committed under `docs/status/` - the ones this project's documents quote - and a fresh
+run. Published renders the Verdict page in under a second; every panel says which file
+its figures came from. The control only appears for a series the repository has a
+committed result for, which today is gold at one hour.
+
+**The Verdict page is the slow one when you ask it to recompute.** It runs `validate` and `verdict` end to end - about
 two minutes over six configurations, four over eighteen. The sidebar's **Configurations**
 control chooses: eighteen matches the published figures, six is raw features only and three
 times faster. Results are cached on the manifest hash, so a second visit is instant and a

@@ -25,6 +25,20 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-02 - The dashboard reads the record it was ignoring
+
+### Added
+
+- **`interfaces/published.py`** and a **Published / Run now** control. Nine payloads sit committed under `docs/status/` - the sidecars every STATUS log and [FINDINGS](FINDINGS.md) quote - and the dashboard re-ran every command anyway: two minutes for the Verdict page, four with every configuration, on numbers that were already on disk. The published path renders the same page in **0.6 seconds**.
+- **Each panel says which it is showing**, naming the file and the date it was generated. The hazard of offering both is a reader who cannot tell a committed figure from a fresh one.
+
+### Changed
+
+- **A request is answered only by a payload that matches it** - same target, timeframe and mode. `find` returns nothing rather than the nearest thing: serving gold's verdict to a reader asking about the S&P would put a number under a caption that does not describe it, which is this repository's own subject arriving through a convenience.
+- **Which command wrote a sidecar is inferred from its shape**, and the signatures are asserted against the real files. A renamed payload key now fails a gate instead of quietly making every panel slow again.
+- **Where the record is silent the option is withdrawn.** All nine cover gold at one hour; on any other series the control disappears and a caption says why.
+- **The test suite got faster**, 65 seconds to 49, because the dashboard's page tests no longer spawn analysis commands.
+
 ## 2026-09-02 - WHOLE against FOCUS, and the two metrics the original published
 
 Two of the ten gaps the parity audit found, closed. Both produce a number worth having.
