@@ -299,3 +299,78 @@ def test_an_unavailable_model_carries_a_reason() -> None:
     results = availability((ModelSpec("Blocked", blocked, needs_scaling=False),))
     assert not results[0].available
     assert "application control" in results[0].reason
+
+
+# --- the two metrics the original published and this project did not compute -------------
+
+
+@pytest.mark.unit
+def test_a_constant_up_predictor_scores_the_f1_the_original_published() -> None:
+    """The number that makes F1 worth carrying at all.
+
+    `Proyecto_Final_Completo` reported **F1 0.68** beside 52% accuracy, as a headline. A
+    predictor that always says UP has recall 1.0 and precision equal to the class balance,
+    so its F1 is `2p/(1+p)` - and at the 51.86% balance of that block, that is **0.6830**.
+    The figure published as performance is what a rule with no parameters scores.
+    """
+    balance = 0.5186
+    index = pd.date_range("2022-01-03", periods=10_000, freq="h", tz="UTC")
+    rng = np.random.default_rng(0)
+    truth = pd.Series((rng.random(10_000) < balance).astype(float), index=index)
+    always_up = pd.Series(1.0, index=index)
+
+    score = score_model(
+        model="always-UP",
+        representation="raw",
+        block="test",
+        probabilities=always_up,
+        labels=truth,
+        baseline_accuracy=balance,
+    )
+
+    assert score.recall == pytest.approx(1.0)
+    assert score.f1 == pytest.approx(2 * balance / (1 + balance), abs=0.01)
+    assert score.f1 > 0.67
+    # And the thing F1 hides, which is why this project never leads with it.
+    assert score.specificity == 0.0
+
+
+@pytest.mark.unit
+def test_f1_is_the_harmonic_mean_and_refuses_to_be_rescued_by_one_half() -> None:
+    """The arithmetic mean would report 0.5 for a predictor that never finds a positive."""
+    index = pd.date_range("2022-01-03", periods=100, freq="h", tz="UTC")
+    truth = pd.Series([1.0] * 50 + [0.0] * 50, index=index)
+    always_down = pd.Series(0.0, index=index)
+
+    score = score_model(
+        model="always-DOWN",
+        representation="raw",
+        block="test",
+        probabilities=always_down,
+        labels=truth,
+        baseline_accuracy=0.5,
+    )
+
+    assert score.recall == 0.0
+    assert score.f1 == 0.0
+
+
+@pytest.mark.unit
+def test_the_negative_predictive_value_mirrors_precision_on_the_other_class() -> None:
+    """A model precise on UP and worthless on DOWN looks fine on precision alone.
+
+    Here every UP call is right and every DOWN call is wrong, so precision is 1.0 and NPV
+    is 0.0 - the asymmetry the original's classification report showed and this project
+    could not, until now.
+    """
+    index = pd.date_range("2022-01-03", periods=100, freq="h", tz="UTC")
+    truth = pd.Series([1.0] * 50 + [1.0] * 50, index=index)
+    half_up = pd.Series([0.9] * 50 + [0.1] * 50, index=index)
+
+    score = score_model(
+        model="half", representation="raw", block="test",
+        probabilities=half_up, labels=truth, baseline_accuracy=1.0,
+    )
+
+    assert score.precision == pytest.approx(1.0)
+    assert score.negative_predictive_value == pytest.approx(0.0)

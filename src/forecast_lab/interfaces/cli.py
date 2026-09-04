@@ -2019,6 +2019,10 @@ def _score_table(scores: list[Any], baseline: float) -> Table:
     table.add_column("Brier", justify="right")
     table.add_column("Recall", justify="right")
     table.add_column("Spec.", justify="right")
+    # F1 is here because the original published it as a headline. An F1 of 0.68 beside 52%
+    # accuracy is the signature of a near-constant UP predictor, and a reader who knows the
+    # original's numbers should be able to find them on this table.
+    table.add_column("F1", justify="right")
     for s in sorted(scores, key=lambda x: x.auc, reverse=True):
         table.add_row(
             s.model,
@@ -2029,11 +2033,15 @@ def _score_table(scores: list[Any], baseline: float) -> Table:
             f"{s.brier:.4f}",
             f"{s.recall:.2%}",
             f"{s.specificity:.2%}",
+            f"{s.f1:.4f}",
         )
     table.add_row(
         "[dim]always-UP (from train)[/dim]", "[dim]-[/dim]", f"[dim]{baseline:.2%}[/dim]",
         "[dim]0.00%[/dim]", "[dim]0.5000[/dim]", "[dim]-[/dim]",
         "[dim]100.00%[/dim]", "[dim]0.00%[/dim]",
+        # A constant UP predictor's F1: recall is 1 and precision is the class balance, so
+        # this is the number the original reported as 0.68 and read as performance.
+        f"[dim]{2 * baseline / (1 + baseline):.4f}[/dim]",
     )
     return table
 
@@ -2078,6 +2086,8 @@ def _train_payload(
                 "precision": s.precision,
                 "recall": s.recall,
                 "specificity": s.specificity,
+                "negative_predictive_value": s.negative_predictive_value,
+                "f1": s.f1,
                 "predicted_up_rate": s.predicted_up_rate,
             }
             for s in scores

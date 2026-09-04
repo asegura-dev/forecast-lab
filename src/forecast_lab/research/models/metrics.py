@@ -44,6 +44,14 @@ class ModelScore:
     precision: float
     recall: float
     specificity: float
+    #: Negative predictive value - precision's mirror on the DOWN class. Reported because
+    #: the original's `classification_report` reported it, and because a model that is
+    #: precise on UP and worthless on DOWN looks fine on precision alone.
+    negative_predictive_value: float
+    #: Harmonic mean of precision and recall. The original quoted it as its headline
+    #: alongside accuracy, and an F1 of 0.68 beside an accuracy of 52% is a signature
+    #: worth being able to reproduce: it is what a near-constant UP predictor scores.
+    f1: float
     auc: float
     brier: float
 
@@ -109,6 +117,10 @@ def score_model(
         precision=_ratio(true_up, true_up + false_up),
         recall=_ratio(true_up, true_up + false_down),
         specificity=_ratio(true_down, true_down + false_up),
+        negative_predictive_value=_ratio(true_down, true_down + false_down),
+        f1=_harmonic(
+            _ratio(true_up, true_up + false_up), _ratio(true_up, true_up + false_down)
+        ),
         auc=_auc(y, p),
         # Brier is the mean squared error of the probability itself, so a model that is
         # right for the wrong reasons - confidently, and often - is penalised where
@@ -122,6 +134,18 @@ def score_model(
 
 def _ratio(numerator: int, denominator: int) -> float:
     return numerator / denominator if denominator else 0.0
+
+
+def _harmonic(precision: float, recall: float) -> float:
+    """F1: the harmonic mean, which is zero when either term is.
+
+    The harmonic mean rather than the arithmetic one because it refuses to be rescued by
+    one good half. A predictor that always says UP has recall 1.0 and precision equal to
+    the class balance - an arithmetic mean would report about 0.76 for it, and F1 reports
+    0.68, which is exactly the figure the original published beside its 52% accuracy.
+    """
+    total = precision + recall
+    return 2 * precision * recall / total if total else 0.0
 
 
 def _auc(y: np.ndarray, p: np.ndarray) -> float:

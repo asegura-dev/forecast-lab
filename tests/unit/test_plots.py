@@ -27,6 +27,7 @@ def _score(name: str, accuracy: float, baseline: float = 0.51) -> ModelScore:
     return ModelScore(
         model=name, representation="raw", block="test", n=1000,
         accuracy=accuracy, precision=0.5, recall=0.5, specificity=0.5,
+        negative_predictive_value=0.5, f1=0.5,
         auc=0.51, brier=0.25, baseline_accuracy=baseline, predicted_up_rate=0.5,
     )
 

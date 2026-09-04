@@ -145,6 +145,8 @@ had to find it ([STATUS](docs/status/STATUS-2026-09-parity.md) sec. 2.3).
 | Original claim | What the rebuild found |
 |---|---|
 | 51.53% accuracy beats random | Its own always-UP baseline scored **51.86%** on the same block. The model **lost by 0.33 points** ([STATUS](docs/status/STATUS-2026-08-models.md)) |
+| **F1 of 0.68**, quoted as a headline | That is what the **constant predictor** scores. A rule that always says UP has recall 1.0 and precision equal to the class balance, so its F1 is `2p/(1+p)` = **0.6749** here - above every model in the table. The figure published as performance is what no model at all achieves |
+| Which feature set is better, WHOLE or FOCUS - *"objetivo del proyecto"*, never answered | **FOCUS**, and by more than the design can resolve. Matched on folds and bars, nine extra markets turn four positive edges into one ([STATUS](docs/status/STATUS-2026-09-whole-vs-focus.md)) |
 | The winner chosen by `Test_AUC.idxmax()` | Selecting on test rather than validation is worth **2.06 points** on identical data - larger than any effect being hunted |
 | Gold and the S&P correlate at **+0.923** | **+0.13** on returns. Eight tenths of it was shared trend ([STATUS](docs/status/STATUS-2026-08-exploratory.md)) |
 | Symbols aligned by outer join and forward fill | Invented **1,250 gold bars** that never traded and flipped which class was the majority ([ADR-003](docs/adr/ADR-003-target-anchored-alignment.md)) |

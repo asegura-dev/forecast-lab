@@ -25,6 +25,24 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-02 - WHOLE against FOCUS, and the two metrics the original published
+
+Two of the ten gaps the parity audit found, closed. Both produce a number worth having.
+
+### Added
+
+- **F1 and the negative predictive value** on every score row, in the payload and in the `train` table. The original quoted **F1 0.68** beside 52% accuracy as a headline; **that is the constant predictor's F1** - a rule that always says UP has recall 1.0 and precision equal to the class balance, so its F1 is `2p/(1+p)` = **0.6749** on this data, above every model fitted. The table now prints it on the always-UP row, where a reader can see what the published figure actually measured.
+- **[STATUS 2026-09-02](docs/status/STATUS-2026-09-whole-vs-focus.md) - WHOLE against FOCUS.** `Proyecto_ASM` set out to determine which feature set was more effective and could not: its two modes ran over 24,232 and 22,441 rows. This repository built both on a shared index in August and then never ran a model in WHOLE - the machinery existed and no committed artefact used it.
+
+### Changed
+
+- **FOCUS wins, and the margin is larger than this design can resolve.** Matched on folds, bars and everything but the feature count - 36,567 scored bars and a 0.65% floor on both sides, 19 columns against 179 - adding nine markets turns **four positive edges into one**, and the best falls from **+0.67% to +0.16%**. Random Forest, the strongest configuration in FOCUS, goes from +0.67% to **-0.14%**. Nine times the features, less signal.
+- **The verdict is untouched.** Nothing pays for its own turnover in either mode. This answers which feature set is less bad, not whether either works.
+
+### Noted
+
+- **One reading this run cannot separate**, named rather than assumed away: whether the extra markets carry no signal, or carry signal that forward-filling destroys. `align --max-staleness` exists to test it and was not used.
+
 ## 2026-09-02 - The five corrections, applied
 
 The audit recorded them; this applies them, in the documents that carried the claim rather than only in the log that found it.
