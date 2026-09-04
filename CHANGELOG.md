@@ -25,6 +25,30 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-02 - The audit this repository owed itself
+
+### Added
+
+- **[STATUS 2026-09-02](docs/status/STATUS-2026-09-parity.md)** - both notebooks read cell by cell against the rebuild, after a claim of parity was made in conversation without opening either file. The counts survive: 23 indicators in `Proyecto_ASM`, 19 here by the explicit policy of [ADR-006](docs/adr/ADR-006-features-and-stationarity.md), and the notebook's own markdown miscounts itself at 27.
+
+### Noted - five published claims that do not survive the check
+
+Recorded here and corrected in the documents themselves in a following commit, so the finding and the fix are separable in the history.
+
+- **The two row counts were blamed on the wrong thing.** [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) says the original's WHOLE mode included crypto. It does not - `Proyecto_ASM` excludes BTCUSD explicitly, with the reason in a comment. The cause is a `dropna()` at the end of an indicator function called once per symbol in a loop, so a 199-row warm-up is paid ten times: `24,431 - 10x199 = 22,441` and `24,431 - 199 = 24,232`, both exact. A sharper defect than the one alleged.
+- **"The maximum of thirty draws" is attributed to the notebook that ran twelve.** Thirty is the other one's count.
+- **The quote this project argues against is not from the notebooks.** *"It is possible to build ML models that beat random"* is from the accompanying `Documentacion_Tecnica_Codigo.docx`. The notebook's own concluding cell says the model **does not** reach levels sufficient for automated trading and that its results are *"consistentes con la teoría de mercados eficientes"* - close to this project's own finding. The repository never distinguished the notebook from the report written around it.
+- **The estimator roster** is described as the original's; it is one notebook's. The other fits a sixth, a `GradientBoostingClassifier` this rebuild does not carry.
+- **Realised volatility was not new.** `Proyecto_Final_Completo` already computed a 24-bar version.
+
+### Noted - four contradictions inside the original, never reported here
+
+The purest instances of this project's own thesis, and it had not used them. The concluding cell names Gradient Boosting as the best model where the code selected LightGBM; quotes an AUC of 0.506 where the selected model scores 0.5104; calls gold a haven against the VIX where its own output prints **-0.173**; and credits RSI and MACD with predictive power where its strongest correlation with direction is **0.0285**.
+
+### Fixed
+
+- **The verdict stated the sign of its own result wrongly.** Running `verdict` on SPX - which the pipeline has always supported and nobody had tried - produced *"none of them makes money: the best loses 76.1%"* two lines under a table reading *"1 of 6 make money at all"*. The configuration **returns** +76.1%. `abs()` and the word "loses" were true of gold, where every configuration loses, and false in general. Every clause of that sentence is now derived from the run.
+
 ## 2026-09-02 - The dashboard, made worth looking at
 
 ### Fixed

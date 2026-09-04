@@ -1727,14 +1727,29 @@ def _print_verdict(
     )
 
     console.print("\n[bold]The verdict[/bold]")
+    best_return = battery.cumulative[battery.best_by_return]
     if surviving and not beaters:
+        # Every clause here is derived from the run, none asserted. An earlier version wrote
+        # "none of them makes money: the best loses X" with `abs()`. That was true of gold,
+        # where every configuration loses, and false the first time this ran on an index -
+        # where the best returned +76% and the sentence said it lost 76%, two lines under a
+        # table saying one of six made money. A verdict that states the sign of its own
+        # result wrongly is worse than one that states nothing.
+        outcome = (
+            f"the best returns {best_return:+.1%}"
+            if best_return > 0
+            else f"the best loses {abs(best_return):.1%}"
+        )
+        earned = (
+            f"{earners} of {total} make money at all and none beats simply holding the asset"
+            if earners
+            else "not one of them makes money"
+        )
         console.print(
             f"[bold]There is a real directional edge and it is worth less than nothing.[/bold] "
             f"{surviving} of {total} configurations beat independence after correcting for "
-            f"having tried {total}, so the signal is not an artefact of searching. None of "
-            f"them makes money: the best loses "
-            f"{abs(battery.cumulative[battery.best_by_return]):.1%} over the scored period "
-            f"while holding the asset returns "
+            f"having tried {total}, so the signal is not an artefact of searching. But "
+            f"{earned}: over the scored period {outcome} while holding it returns "
             f"{battery.benchmark_cumulative:+.1%}. The edge is real and smaller than the "
             f"cost of acting on it."
         )

@@ -252,7 +252,6 @@ The pipeline runs end to end and now answers the question it was built to answer
 - [x] The significance battery, and the verdict it produces
 - [x] `FINDINGS`, and the dashboard that runs the CLI rather than reimplementing it
 - [ ] The gap benchmark against the overnight swap - the last untested hypothesis
-- [ ] The evaluation battery and the verdict
 
 ## Origin and scope of the re-analysis
 
