@@ -12,8 +12,12 @@ accident.
 results by `Test_Accuracy` in one notebook and picked the winner with
 `results_df['Test_AUC'].idxmax()` in the other. That is choosing a model by the number
 that is supposed to be measuring it - and it is why the reported 51.53% is not an
-out-of-sample figure at all, but the maximum of thirty in-sample draws. Here the test
-block is scored once, for every model, and the selection is already made.
+out-of-sample figure at all, but the maximum of twelve in-sample draws - that notebook
+compares six models on two representations. (An earlier version of this docstring said
+thirty, which is the *other* notebook's count of five estimators by three representations
+by two modes. The two were conflated; the argument holds and the effect is weaker than
+claimed.) Here the test block is scored once, for every model, and the selection is
+already made.
 
 **Probabilities, not hard labels.** AUC is computed from `predict_proba`. The notebook
 that the technical report documents passed hard predictions to `roc_auc_score`, which is

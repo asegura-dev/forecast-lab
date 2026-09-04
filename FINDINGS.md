@@ -129,8 +129,18 @@ finding below as a pre-registered result would overstate it.
 
 ## What happened to the original analysis
 
-This project re-engineers a postgraduate notebook that reported **51.53% accuracy** as
-evidence that "it is possible to build ML models that beat random" on hourly gold.
+This project re-engineers a postgraduate notebook that reported **51.53% accuracy** on
+hourly gold.
+
+**Which "original" is being corrected matters, and this document had it wrong.** The claim
+that *"es posible construir modelos de Machine Learning que superen el azar"* is from the
+technical report written around the notebook, not from the notebook. The notebook's own
+concluding cell says the model **does not** reach levels sufficient for automated trading,
+and that an AUC near 0.5 is *"consistente con la teoría de mercados eficientes"* - which is
+close to the finding above. So the table below corrects **the analysis**, and it was a
+careful analysis whose numbers were read too generously by the documents written on top of
+it. That gap between the work and its telling is the more interesting failure, and an audit
+had to find it ([STATUS](docs/status/STATUS-2026-09-parity.md) sec. 2.3).
 
 | Original claim | What the rebuild found |
 |---|---|
@@ -140,6 +150,23 @@ evidence that "it is possible to build ML models that beat random" on hourly gol
 | Symbols aligned by outer join and forward fill | Invented **1,250 gold bars** that never traded and flipped which class was the majority ([ADR-003](docs/adr/ADR-003-target-anchored-alignment.md)) |
 | No transaction costs | Break-even is **51.2%-52.7%** depending on the model's own turnover ([ADR-012](docs/adr/ADR-012-turnover-and-dependence-are-measured.md)) |
 | No power analysis | Without one, a null result cannot be told from a blind one |
+
+### And the notebook refuted itself four times
+
+Every one of these is a claim in the concluding cell contradicted by an output printed
+earlier in the same notebook. They are the sharpest evidence this project has for its own
+thesis, and it did not use them until an audit read the file:
+
+| The conclusion states | The notebook's own output shows |
+|---|---|
+| *"Mejor Modelo: **Gradient Boosting** con datos originales"* | the code selected **LightGBM (PCA)** |
+| *"AUC-ROC: ~0.506"* | the selected model scores **0.5104** |
+| *"Oro vs Volatilidad (VIX): correlación positiva, el oro actúa como refugio"* | the correlation printed is **-0.173**, and the branch that fired said *"correlación débil"* |
+| *"Indicadores Técnicos: RSI, MACD y medias móviles muestran **poder predictivo**"* | the strongest correlation with direction is **0.0285** |
+
+The number that refutes each claim was on the same screen as the claim. That is not
+carelessness with data - the data was computed correctly every time. It is what happens
+when a conclusion is written from expectation and the output is scrolled past.
 
 **The original's conclusion was wrong, and the corrected pipeline finds something the
 original had no way of seeing.** Not "nothing" - a real signal, and a measurement of exactly

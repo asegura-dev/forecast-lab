@@ -13,7 +13,9 @@
 | focus | 22,982 | 19 | 1 |
 | whole | 22,982 | 199 | 10 |
 
-**The two modes share an index exactly**, and a test asserts it. The original project's did not - its WHOLE included crypto, which begins a year after everything else, so the two ran over 24,232 and 22,441 rows respectively. Every difference between them mixed a change of feature set with a change of sample, which is why its comparison of the two never meant anything.
+**The two modes share an index exactly**, and a test asserts it. The original project's did not: the two ran over 24,232 and 22,441 rows respectively.
+
+> **Corrected 2026-09-02.** This log said the cause was crypto in the WHOLE set. It was not - the original excludes BTCUSD explicitly. Its indicator function ends with `dropna()` and is called **once per symbol in a loop**, so the 199-row warm-up of the 200-period moving average is paid once per contributor: `24,431 - 10x199 = 22,441` and `24,431 - 199 = 24,232`, both exact. The symptom was diagnosed correctly and the mechanism named wrongly; the real one is a better example of what this project is about. Every difference between them mixed a change of feature set with a change of sample, which is why its comparison of the two never meant anything.
 
 199 warm-up rows are dropped, by position rather than by `dropna()`. The longest window is 200 bars, so a row before that would report a value computed from less history than it claims. `dropna()` was rejected because it would *also* delete rows a stale auxiliary left empty - real target bars, carrying real target data, which belong in the matrix marked rather than removed.
 
@@ -33,7 +35,7 @@ The original `indicator_creator` produces **23 columns per symbol**. Every one i
 | `ATR` | `atr_pct` | as a fraction of price |
 | `Returns`, `Log_Returns` | `return`, `log_return` | |
 | - | `range_pct` | new |
-| - | `realised_vol_24`, `realised_vol_168` | new - the substitute for VIX that ADR-002 promised and had never been built |
+| `RealVol_24h` (in the other notebook) | `realised_vol_24`, `realised_vol_168` | the substitute for VIX that ADR-002 promised. **Not new**: `Proyecto_Final_Completo` already computed a 24-bar version - corrected 2026-09-02 |
 
 **The original's defect was narrower than "it lacked scale-free features", and that makes it more instructive.** It computed `Dist_SMA200` and its siblings itself - exactly the normalisation used here. What it did not do was *remove what the correction replaced*: the distances and the raw `SMA_200`, `EMA_12`, `BB_HIGH`, `BB_MID`, `BB_LOW`, `MACD` and `ATR` all sat in the same matrix. **Twelve of its twenty-three per-symbol columns carry the price level, beside their own normalised versions.** Nobody forgot the correction. Nobody deleted the thing it corrected.
 

@@ -25,6 +25,22 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-02 - The five corrections, applied
+
+The audit recorded them; this applies them, in the documents that carried the claim rather than only in the log that found it.
+
+### Fixed
+
+- **The two row counts.** [ADR-006](docs/adr/ADR-006-features-and-stationarity.md), `features/build.py` and [STATUS 2026-08-24](docs/status/STATUS-2026-08-features.md) blamed crypto in the original's WHOLE set. It excludes BTCUSD explicitly. The cause is a `dropna()` ending an indicator function called once per symbol in a loop: `24,431 - 10x199 = 22,441` and `24,431 - 199 = 24,232`. The decision each document reaches is unchanged and better motivated.
+- **Twelve draws, not thirty.** [ADR-007](docs/adr/ADR-007-fitting-models-without-leaking.md) and `models/training.py` applied the multiplicity argument to the notebook that compares six models on two representations. Thirty is the other one's count. The argument holds; the effect is weaker than claimed and now says so.
+- **Which "original" is being corrected.** The README and [FINDINGS](FINDINGS.md) attributed *"es posible construir modelos de Machine Learning que superen el azar"* to the notebook. It is from the technical report written around it. **The notebook's own concluding cell says the model does NOT reach levels sufficient for automated trading, and that an AUC near 0.5 is consistent with efficient markets** - close to this project's finding. Both documents now correct the analysis rather than a slogan it did not make, and name the gap between the work and its telling as the more interesting failure.
+- **The estimator roster** is `Proyecto_ASM`'s, not "the original project's". The other notebook fits six, including a `GradientBoostingClassifier` this catalogue does not carry, and leaves its trees unconstrained - which is why its Random Forest reports a training accuracy of exactly 1.0000.
+- **Realised volatility was not an invention.** [ADR-002](docs/adr/ADR-002-data-source-and-symbol-set.md) presented it as the substitute it promised; `Proyecto_Final_Completo` already computed `RealVol_24h` by the same definition. It arrived here independently, which is not the same as arriving first.
+
+### Added
+
+- **The four times the notebook refuted itself**, in [FINDINGS](FINDINGS.md). Its conclusion names Gradient Boosting where the code selected LightGBM, quotes an AUC of 0.506 where the selected model scores 0.5104, calls gold a haven against the VIX where the printed correlation is **-0.173**, and credits RSI and MACD with predictive power where the strongest correlation with direction is **0.0285**. Every refuting number was on the same screen as the claim. This project's sharpest evidence for its own thesis, unused until an audit read the file.
+
 ## 2026-09-02 - The audit this repository owed itself
 
 ### Added

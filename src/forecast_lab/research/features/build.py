@@ -12,11 +12,16 @@ precisely when its venue is shut. A tree fed those columns learns the clock and 
 report calls it a macro signal.
 
 **Two modes, and the reason they exist.** The original project ran WHOLE (every symbol)
-and FOCUS (the target alone) and compared them - except its WHOLE included crypto, which
-starts a year late, so the two modes were computed over different rows: 24,232 against
-22,441. Comparing them was never valid. WHOLE here excludes crypto, exactly as the
-original's own code did in the end, so both modes share an index and the comparison
-means something for the first time. Crypto stays available as a *target*.
+and FOCUS (the target alone) and compared them over different rows - 24,232 against
+22,441 - so comparing them was never valid. Both modes here share an index, and a test
+asserts it, so the comparison means something for the first time.
+
+The cause of that mismatch is worth knowing, because an audit found this docstring had it
+wrong. It was not crypto starting late: the original excludes BTCUSD explicitly. Its
+indicator function ends with `dropna()` and runs once per symbol in a loop, so a 199-row
+warm-up is paid once per contributor - ten times for WHOLE, once for FOCUS. Crypto is
+still excluded here, for its own reason (it would cost a year of history), and stays
+available as a *target*.
 """
 
 from __future__ import annotations

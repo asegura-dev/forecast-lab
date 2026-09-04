@@ -1,8 +1,15 @@
 """Which models are tried, and which ones this machine can actually load.
 
-The five estimators come from the original project, with its hyperparameters unchanged.
-Changing them would count as a fresh trial in the deflated-Sharpe accounting, and the
-object here is to isolate the effect of the corrections rather than of a sweep.
+The five estimators come from `Proyecto_ASM`, with its hyperparameters unchanged. Changing
+them would count as a fresh trial in the deflated-Sharpe accounting, and the object here is
+to isolate the effect of the corrections rather than of a sweep.
+
+**One notebook, not both**, which an earlier version of this docstring did not say.
+`Proyecto_Final_Completo` fits **six**, including a `GradientBoostingClassifier` this
+catalogue does not carry, and its Random Forest and XGBoost are unconstrained where
+`Proyecto_ASM` caps their depth - which is why its Random Forest reports a training
+accuracy of exactly 1.0000. `HistGradientBoosting` here is marked `added_here` and is a
+different estimator, not a stand-in for that one.
 
 **Availability is discovered rather than assumed**, which is the unusual part of this
 module. Two of the five load a native DLL through `ctypes`, and Windows Smart App Control

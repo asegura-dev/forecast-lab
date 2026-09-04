@@ -53,7 +53,9 @@ Both run on every column and both are printed. Neither can fail the command.
 
 `LATE_STARTERS` holds BTCUSD and ETHUSD; they contribute no columns to WHOLE, and either can still be the target.
 
-*Why:* the original project ran WHOLE and FOCUS and compared them, but its WHOLE included crypto - whose history begins a year after everything else - so the two modes were computed over different rows: **24,232 against 22,441**. Every difference between them mixed a change of feature set with a change of sample, so the comparison never meant anything. Here both modes produce **22,982 rows** on the reference data, and a test asserts the indices are identical.
+*Why:* the original project ran WHOLE and FOCUS and compared them over different rows - **24,232 against 22,441** - so every difference between them mixed a change of feature set with a change of sample, and the comparison never meant anything.
+
+> **Corrected 2026-09-02 ([STATUS](../status/STATUS-2026-09-parity.md) sec. 2.1).** This paragraph blamed crypto, *"whose history begins a year after everything else"*. It is not the cause: the original **excludes BTCUSD explicitly**, commented out with the reason. The real mechanism is sharper - its indicator function ends with `dropna()` and is called **once per symbol in a loop**, so the 199-row warm-up of the 200-period moving average is paid once per contributor: `24,431 - 10x199 = 22,441` and `24,431 - 199 = 24,232`, both exact. A `dropna()` inside a loop, invisible at the call site, costing 1,791 rows. The decision below is unchanged and better motivated: excluding crypto is right for its own reason, and sharing an index is what the test actually asserts. Here both modes produce **22,982 rows** on the reference data, and a test asserts the indices are identical.
 
 Symbol order is sorted explicitly rather than taken from a set. The original used `list(set(...))`, whose iteration order varies between processes - which makes the column layout, and therefore any PCA fitted on it, irreproducible from one run to the next.
 

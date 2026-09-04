@@ -10,7 +10,9 @@
 
 ## The finding that started this
 
-The original analysis reported a model that beat chance: **51.53% accuracy**, presented as evidence that "it is possible to build ML models that beat random" on hourly gold direction.
+The original analysis reported a model that beat chance: **51.53% accuracy**. The technical report written around the notebook presented it as evidence that *"es posible construir modelos de Machine Learning que superen el azar"* on hourly gold direction, and the presentation script went further: *"logramos construir un modelo funcional que supera el azar"*.
+
+**The notebook itself said something more careful**, and this repository spent its first twelve commits not noticing the difference. Its concluding cell reads: *"el modelo **NO alcanza** niveles de rendimiento suficientes para trading automatizado"*, and *"los resultados modestos (AUC ~0.5) son consistentes con la teoría de mercados eficientes"*. That is close to what this project concludes. **The analysis was more honest than its communication** - which is a finding in itself, and the one an audit had to point out ([STATUS](docs/status/STATUS-2026-09-parity.md) sec. 2.3).
 
 Its own classification report printed the answer two lines below:
 
