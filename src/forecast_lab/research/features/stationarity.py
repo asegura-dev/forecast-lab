@@ -4,7 +4,7 @@ Gold runs from 1,616 to 4,378 across this sample. Any feature carrying that leve
 test block sitting outside the support of its training data, and a model fitted on one
 is extrapolating rather than predicting. It looked like the explanation for the original
 pipeline's PCA at 90% collapsing 63 features into **6 components** - though with every
-level removed, PCA still retains 6 from 17, so the levels made the redundancy worse
+level removed, PCA still retains 6 from 19, so the levels made the redundancy worse
 rather than causing it.
 
 The policy has three layers, in descending order of how much they can be trusted.
@@ -54,9 +54,12 @@ SCALE_PROBE = 10.0
 #: A column is called scale-dependent when the probe moves it by more than this.
 #:
 #: Measured rather than chosen. With the statistic below, the worst movement among
-#: genuinely scale-free columns on the real gold series is **7.0e-10**, while a raw price
-#: level moves by **8.5e+00**. This threshold sits three orders above the noise and six
-#: below a real violation.
+#: genuinely scale-free columns on the real gold series is **7.0e-10** - which is checkable,
+#: it is the largest `relative_change` in `docs/status/features-policy.json`. The figure for
+#: a raw price level is **not**: no level survives into the committed policy, so both this
+#: comment's 8.5e+00 and ADR-006's 9.0e+00 come from ad-hoc probes on different samples and
+#: neither can be verified against a sidecar. The threshold sits three orders above the
+#: measured noise and six below a violation of any plausible size.
 SCALE_TOLERANCE = 1e-6
 
 #: Which percentile of the per-row deviation decides the verdict.

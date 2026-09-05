@@ -50,7 +50,7 @@ Each auxiliary gets a `staleness_s` column recording, per row, how old the value
 
 `max_staleness_seconds` drops a carried value rather than letting it stand in.
 
-*Why:* the honest reading of a forward fill decays. Over a weekend, Friday's close would otherwise masquerade as a Monday price for 65 consecutive hours, and a model would happily learn the resulting flat stretch as signal. There is no universally right threshold, which is why there is no default: the caller picks one, and the panel reports what it cost.
+*Why:* the honest reading of a forward fill decays. Over a weekend, Friday's close would otherwise masquerade as a Monday price for 65 consecutive hours, and a model would happily learn the resulting flat stretch as signal. There is no universally right threshold, so none is imposed - but that is not the same as having no default. `max_staleness_seconds=None` means *carry forever*, and `--max-staleness 0` resolves to it, so a caller who passes nothing gets the most permissive setting rather than a prompt. The panel reports what it cost, which is the mitigation; the flag has no committed artefact exercising it, which is a debt.
 
 **Trade-off:** raising the limit keeps rows and lowers their quality; lowering it does the reverse. The choice belongs to the experiment, so it is a parameter rather than a constant.
 

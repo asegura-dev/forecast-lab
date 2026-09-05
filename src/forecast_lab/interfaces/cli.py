@@ -49,6 +49,7 @@ from forecast_lab.ingest import (
     write_series,
 )
 from forecast_lab.ingest.importer import ImportReport
+from forecast_lab.interfaces.presentation import significance
 from forecast_lab.research import (
     ASSUMED_ROUND_TRIP_BPS,
     DEFAULT_FLIP_RATE,
@@ -92,6 +93,7 @@ from forecast_lab.research import (
     indicators,
     label_direction,
     lag_one_autocorrelation,
+    mean_absolute_return_bps,
     measure_dependence,
     multicollinear_pairs,
     normality,
@@ -135,6 +137,7 @@ DEFAULT_FIGURES = Path("docs/status/figures")
 #: break-even is **53.49%**. Whenever a spread is available the figure is computed from
 #: it rather than taken from here (ADR-010).
 FALLBACK_BREAK_EVEN = 0.5192
+
 
 
 @app.callback()
@@ -1514,7 +1517,16 @@ def verdict_command(
         # The return each prediction was about: the move from that bar to the next, which
         # is exactly what the label describes. Getting this shift wrong would credit a
         # strategy with a move that had already happened when it took the position.
-        realised = np.log(close).diff().shift(-1).reindex(matrix.frame.index)
+        #
+        # **Simple, not logarithmic, and the distinction is not cosmetic.** A position
+        # earns the simple return; the log return is what you sum. This line used to
+        # produce log returns, and the money path then summed them and printed the sum as
+        # a percentage - so the headline read "the best loses 196.7%", a loss larger than
+        # the capital available to lose it. The true figure is -86.0%. Worse still, the
+        # short side was wrong in the strategy's favour: -log(1+r) is not the log return
+        # of a short, and the error runs one way. Measured on this series, a half-short
+        # strategy looked 7.4 points better than it was.
+        realised = close.pct_change().shift(-1).reindex(matrix.frame.index)
     except ForecastLabError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from None
@@ -1584,6 +1596,28 @@ class _Battery:
     best_by_return: str
 
 
+def _compounded(returns: pd.Series) -> float:
+    """What one unit of capital became, less what it started with.
+
+    Reinvested rather than summed. A sum of per-bar returns is not a return: it ignores
+    that the second bar trades the proceeds of the first, and it can print a loss past
+    -100% - which this project did, for a fortnight, in its own headline.
+
+    Compounded through logs rather than `cumprod` because 40,587 factors multiplied in
+    sequence lose precision that `log1p` keeps.
+
+    Total ruin is handled before the logs rather than through them. `log1p(-1)` is `-inf`,
+    which reaches the right answer by way of a `RuntimeWarning` - and a numeric path that
+    warns on a case it handles correctly teaches a reader to ignore its warnings. It is
+    unreachable at this position sizing anyway: unlevered, one unit of capital, hourly
+    moves of thirteen basis points.
+    """
+    values = returns.to_numpy(dtype=float)
+    if bool(np.any(values <= -1.0)):
+        return -1.0
+    return float(np.expm1(np.log1p(values).sum()))
+
+
 def _run_battery(
     scored: list[PooledScore],
     actual: Any,
@@ -1628,9 +1662,9 @@ def _run_battery(
         directional=directional,
         survives_holm=survives,
         mean_bps={k: float(v.mean()) * 10_000 for k, v in returns.items()},
-        cumulative={k: float(v.sum()) for k, v in returns.items()},
+        cumulative={k: _compounded(v) for k, v in returns.items()},
         benchmark_mean_bps=float(benchmark.mean()) * 10_000,
-        benchmark_cumulative=float(benchmark.sum()),
+        benchmark_cumulative=_compounded(benchmark),
         superiority=superiority,
         sharpe=sharpe,
         best_by_return=best,
@@ -1722,7 +1756,8 @@ def _print_verdict(
         f"[dim]Deflated Sharpe[/dim] on {escape(battery.best_by_return)}: "
         f"Sharpe {verdict.sharpe:+.5f}/bar (skew {verdict.skew:+.2f}, kurtosis "
         f"{verdict.kurtosis:.1f}), expected maximum of {verdict.trials} trials "
-        f"{verdict.expected_maximum:+.5f}, DSR [bold]{verdict.deflated:.4f}[/bold] - "
+        f"{verdict.expected_maximum:+.5f}, DSR "
+        f"[bold]{significance(verdict.deflated)}[/bold] - "
         f"{'survives' if verdict.survives() else '[red]does not survive[/red]'}."
     )
 
@@ -1876,9 +1911,16 @@ def _break_even_at(bars: pd.DataFrame, rate: float) -> float:
     ADR-012 records.
     """
     if "spread" not in bars.columns:
-        # `p = 0.5 + f*c/(2*E|r|)` is linear in f, so the assumed threshold - which is
-        # quoted at f = 0.5 - rescales exactly rather than needing to be recomputed.
-        return 0.5 + (FALLBACK_BREAK_EVEN - 0.5) * (rate / DEFAULT_FLIP_RATE)
+        # The cost is assumed at 1 bp; `E|r|` is measured from this series' own moves.
+        # Returning `FALLBACK_BREAK_EVEN` rescaled - as this did - carried gold's average
+        # move onto whatever series was asking, so an instrument twice as volatile got
+        # gold's threshold. Only the half that cannot be measured is assumed.
+        try:
+            return break_even(
+                ASSUMED_ROUND_TRIP_BPS, mean_absolute_return_bps(bars), flip_rate=rate
+            ).accuracy
+        except ForecastLabError:
+            return 0.5 + (FALLBACK_BREAK_EVEN - 0.5) * (rate / DEFAULT_FLIP_RATE)
     try:
         summary = summarise_spread(bars)
         return break_even(
@@ -1897,7 +1939,19 @@ def _break_even_for(bars: pd.DataFrame) -> tuple[float, str]:
     in a downloaded column.
     """
     if "spread" not in bars.columns:
-        return FALLBACK_BREAK_EVEN, "no spread in this series, so an optimistic 1 bp is assumed"
+        # The cost is assumed; the average move it has to be paid out of is not. Returning
+        # `FALLBACK_BREAK_EVEN` - as this did - quoted gold's 51.92% for every series that
+        # arrived without a spread column, which is the same error one layer down: a figure
+        # derived from one instrument standing in for another's, with nothing saying so.
+        try:
+            move = mean_absolute_return_bps(bars)
+        except ForecastLabError:
+            return FALLBACK_BREAK_EVEN, "no spread and no measurable move; assuming 1 bp on gold"
+        return (
+            break_even(ASSUMED_ROUND_TRIP_BPS, move).accuracy,
+            f"no spread in this series, so an optimistic 1 bp is assumed against its own "
+            f"{move:.2f} bps average move",
+        )
     try:
         summary = summarise_spread(bars)
         computed = break_even(summary.median_bps, summary.mean_absolute_return_bps)

@@ -19,6 +19,7 @@ no dependence on which dataset happens to be on the machine.
 
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
@@ -28,6 +29,9 @@ import pytest
 from typer.testing import CliRunner
 
 from forecast_lab.interfaces.cli import app
+
+#: The package source, for the tests that read the dashboard rather than trusting a list.
+SRC = Path(__file__).resolve().parents[2] / "src" / "forecast_lab"
 
 runner = CliRunner()
 
@@ -357,6 +361,21 @@ DASHBOARD_KEYS: dict[str, tuple[str, ...]] = {
         "multiplicity.deflated_sharpe.expected_maximum",
         "multiplicity.deflated_sharpe.trials",
     ),
+    "train": (
+        "selected_on_validation", "test_edge",
+        "models_unavailable",
+        "scores[].model", "scores[].representation", "scores[].block",
+        "scores[].accuracy", "scores[].baseline_accuracy", "scores[].edge",
+        "scores[].auc", "scores[].brier", "scores[].predicted_up_rate",
+    ),
+}
+
+#: Commands the dashboard runs whose output it prints rather than indexes. There are no
+#: payload keys to pin, and each needs a reason - so that a seventh command cannot land
+#: here by default, which is how `train` went unpinned.
+RENDERED_AS_TEXT: dict[str, str] = {
+    "symbols": "prints the inventory table as the CLI formats it; no payload is read",
+    "verify": "prints the manifest comparison; the dashboard reads only its exit code",
 }
 
 #: Extra arguments some commands need to reach the sections the dashboard reads.
@@ -418,10 +437,81 @@ def test_the_payload_carries_every_key_the_dashboard_indexes(
 
 @pytest.mark.unit
 def test_the_key_list_covers_the_commands_the_dashboard_runs() -> None:
-    """A command the dashboard indexes but nobody listed would be untested and unnoticed."""
+    """Every command the dashboard runs must have its payload keys pinned here.
+
+    This assertion used to run the other way - `set(DASHBOARD_KEYS) <= JSON_CAPABLE` - which
+    checks that nothing listed is bogus and says nothing about what is missing. `train` was
+    missing for as long as the list existed, while `dashboard.py` indexed
+    `selected_on_validation` and `scores[].block` directly: renaming either passed all three
+    gates and broke the Models page. The comment beside the old assertion even said the
+    dashboard reads `train`.
+
+    So the list of commands is **read out of the dashboard** rather than restated. A page
+    added tomorrow that runs a seventh command fails here until its payload is pinned, which
+    is the deny-by-default posture `tests/test_layering.py` takes for imports.
+    """
     from forecast_lab.interfaces.runner import JSON_CAPABLE
 
-    assert set(DASHBOARD_KEYS) <= JSON_CAPABLE
-    # `baseline` and `train` are JSON-capable and the dashboard reads `train`; `baseline`
-    # is reached only through its own page, which renders no payload keys directly.
-    assert "verdict" in DASHBOARD_KEYS, "the most deeply indexed payload must be covered"
+    source = ast.parse((SRC / "interfaces" / "dashboard.py").read_text(encoding="utf-8"))
+    invoked = {
+        node.args[0].value
+        for node in ast.walk(source)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Invocation"
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+    }
+
+    assert invoked, "no command call sites found - the extraction stopped working"
+    assert not (set(DASHBOARD_KEYS) & set(RENDERED_AS_TEXT)), "a command is in both lists"
+    assert set(DASHBOARD_KEYS) <= JSON_CAPABLE, "a pinned command has no --json to pin"
+
+    unclassified = invoked - set(DASHBOARD_KEYS) - set(RENDERED_AS_TEXT)
+    assert not unclassified, (
+        f"the dashboard runs commands nobody classified: {sorted(unclassified)}. "
+        "Pin the payload keys in DASHBOARD_KEYS, or record in RENDERED_AS_TEXT why there "
+        "are none to pin."
+    )
+
+
+# --- the headline number, and the arithmetic that got it wrong ---------------------------------
+
+
+@pytest.mark.unit
+def test_a_cumulative_return_can_never_pass_total_loss() -> None:
+    """The defect this pins, in one property.
+
+    The money path used to report `float(v.sum())` over per-bar returns and print it as a
+    percentage, so the headline read "the best loses 196.7%" - a loss larger than the
+    capital available to lose it, sitting in the README for a fortnight. The dashboard
+    glossary had even grown an entry explaining why the figure passed 100%, which is a
+    defect being described rather than investigated.
+
+    No sequence of unlevered positions can lose more than everything. The bound is `>=`
+    rather than `>`: 0.5 ** 200 is smaller than the least positive double, so total ruin is
+    reported as exactly -100% instead of the -99.999...% arithmetic would give. That is the
+    right answer to print, and the wrong one to assert a strict inequality against.
+    """
+    from forecast_lab.interfaces.cli import _compounded
+
+    ruinous = pd.Series([-0.5] * 200)
+
+    assert _compounded(ruinous) >= -1.0
+
+
+@pytest.mark.unit
+def test_a_cumulative_return_reinvests_rather_than_adds() -> None:
+    """Two bars of +10% make +21%, not +20%: the second bar trades the first one's proceeds."""
+    from forecast_lab.interfaces.cli import _compounded
+
+    assert _compounded(pd.Series([0.1, 0.1])) == pytest.approx(0.21)
+
+
+@pytest.mark.unit
+def test_a_cumulative_return_is_exact_for_the_loss_that_ends_it() -> None:
+    """-100% on any bar is total ruin, and nothing after it can recover the position."""
+    from forecast_lab.interfaces.cli import _compounded
+
+    assert _compounded(pd.Series([-1.0, 5.0, 5.0])) == pytest.approx(-1.0)

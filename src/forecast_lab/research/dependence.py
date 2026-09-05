@@ -26,8 +26,10 @@ prominently and repeatedly.
 **Why it is still worth computing.** A negative result about one's own caveat is only
 credible if the measurement was capable of finding the opposite. On a synthetic AR(1)
 correctness series the same code returns an inflation of **3.64x** and an effective sample
-of 1,513 out of 20,000, which is pinned by a test. The instrument works; the dependence is
-not there.
+of 1,513 out of 20,000. What the test pins is the *property* - on 6,000 synthetic rows it
+asserts an inflation above 2.0 and an effective sample below half of n - not those two
+figures, which come from a one-off probe and are quoted here as illustration. The
+instrument works; the dependence is not there.
 
 **Folds are bootstrapped separately.** A pooled walk-forward series is five contiguous
 stretches with years of gap between them. Resampling it as one series would let a block

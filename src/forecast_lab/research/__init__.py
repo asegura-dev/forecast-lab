@@ -34,6 +34,7 @@ from forecast_lab.research.costs import (
     break_even_table,
     directional_returns,
     flip_rate,
+    mean_absolute_return_bps,
     net_of_costs,
     summarise_spread,
 )
@@ -240,6 +241,7 @@ __all__ = [
     "indicators",
     "label_direction",
     "lag_one_autocorrelation",
+    "mean_absolute_return_bps",
     "measure_dependence",
     "multicollinear_pairs",
     "net_of_costs",

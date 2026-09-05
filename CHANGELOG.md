@@ -25,6 +25,32 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-04 - The book
+
+### Added
+
+- **[`docs/book/`](docs/book/00-preface.md) - six chapters and a preface**, around 18,000 words: data and alignment, the features, labels and models, costs and power, significance, and the architecture. The ADRs record why a decision was made when it was made and the STATUS logs record what a run measured; neither is a continuous explanation of how the apparatus works, which is what this is.
+- **Written under one rule**: every formula cites the module implementing it, every number cites the committed sidecar it came from, and where a document disagreed with the code the disagreement is reported rather than smoothed over. That rule is what turned up the return-accounting defect below, a live `TypeError`, a break-even quoting gold's threshold for other instruments, and a dozen stale figures in ADRs and docstrings.
+- **The dashboard's Reasoning page leads with the book** and groups its thirty-one documents by kind, because a flat list of stems is a scroll rather than a menu.
+
+## 2026-09-04 - The headline number was wrong
+
+### Fixed
+
+- **A sum of returns is not a return.** The money path reported `float(v.sum())` over 40,587 per-bar returns and printed it with a `%`, so the project's most-quoted sentence read *"the best loses 196.7%"* - a loss larger than the capital available to lose it. Compounded properly, it loses **86.87%**.
+- **The short side was credited with more than it earned.** The summed series was logarithmic, and `-log(1+r)` is not the log return of a short. Jensen puts that error on one side always; measured here, it flattered a half-short strategy by **7.4 points**.
+- **The Deflated Sharpe printed as `0.0000`** where the sidecar says 2.27e-10 - the exact defect [presentation.py](src/forecast_lab/interfaces/presentation.py)'s `significance` exists to end, in the one table whose subject is significance.
+- **A `TypeError` on the machines the RUNBOOK is written for.** The Models page joined `models_unavailable` as if its entries were strings; each is a `{"name", "reason"}` mapping. The branch is dead whenever all six estimators import - so the only reader who ever reached it was the one whose machine had blocked something, which is the reader the message exists for. The formatting moved to `presentation.py`, where a test can reach it without a browser.
+
+### Changed
+
+- **The verdict does not move.** 9 of 18 still survive Holm, 0 of 18 still make money, 0 of 18 still beat holding the asset; `exp` is monotonic and no ordering changed. Buy-and-hold is **+100.91%**, SPA **p = 0.761**, DSR **2.27e-10**. Every document quoting the old figures was corrected against the regenerated sidecar.
+- **`DASHBOARD_KEYS` is checked against the dashboard rather than by hand.** The old assertion ran `set(DASHBOARD_KEYS) <= JSON_CAPABLE`, which says nothing about what is *missing*: `train` was unpinned for as long as the list existed while the Models page indexed its payload directly, so renaming a key passed all three gates and broke the page. The command list is now read out of `dashboard.py` by AST, and a command that is neither pinned nor recorded as text-only fails the gate.
+
+### Why it survived
+
+Nothing was inconsistent - every document quoted the same sidecar, and the gates check types, style and behaviour, none of which know what a return is. Worse, the dashboard glossary had already **explained the anomaly**: *"It exceeds 100% because it is a sum over 40,000 bars, not a capital loss."* Every clause true, and it never asks why a return is being reported as a sum. An anomaly that has acquired an explanation is harder to find than one that has not. [STATUS 2026-09-04](docs/status/STATUS-2026-09-return-accounting.md) carries the arithmetic and the three tests that now pin it.
+
 ## 2026-09-02 - The dashboard reads the record it was ignoring
 
 ### Added
@@ -171,8 +197,8 @@ The project's answer, and it needed two questions kept apart to become one.
 
 ### Changed
 
-- **The verdict is now two answers rather than one.** *Skill*: **9 of 18** configurations survive Holm on Pesaran-Timmermann, the best at z = 4.61 - the directional signal is real and not an artefact of having searched. *Profit*: **0 of 18** make money and 0 of 18 beat holding gold, under either position framing. Hansen's SPA gives p = 0.763, StepM rejects nothing, the Deflated Sharpe of the least-bad configuration is 0.0000.
-- **The headline number is the gap.** Traded, the models turn buy-and-hold's **+69.8%** into **-196.7%** over the same 40,587 bars. One point of directional accuracy costs more to collect than it is worth.
+- **The verdict is now two answers rather than one.** *Skill*: **9 of 18** configurations survive Holm on Pesaran-Timmermann, the best at z = 4.61 - the directional signal is real and not an artefact of having searched. *Profit*: **0 of 18** make money and 0 of 18 beat holding gold, under either position framing. Hansen's SPA gives p = 0.761, StepM rejects nothing, the Deflated Sharpe of the least-bad configuration is 2.3e-10.
+- **The headline number is the gap.** Traded, the models turn buy-and-hold's **+100.9%** into **-86.9%** over the same 40,587 bars. One point of directional accuracy costs more to collect than it is worth.
 - **Skill is tested against independence, not against a coin flip.** A predictor that always says UP on a series rising 52% of the time scores 52% and knows nothing; the independence benchmark measures 50.09%-50.19% here and a constant predictor scores exactly zero against it.
 
 ### Fixed

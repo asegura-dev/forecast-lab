@@ -37,7 +37,7 @@ Assuming a parameter in the one module built to stop this project assuming thing
 defect worth recording loudest. It made the verdict look far safer than it is: the best
 model was published as falling **2.26 points** short of paying for itself, and against its
 own turnover it falls **1.44** short. The closest, Naive Bayes, misses by **0.46 points -
-1.84 standard errors**, which is a near miss rather than a rout. The conclusion survives;
+1.86 standard errors**, which is a near miss rather than a rout. The conclusion survives;
 its margin does not. `flip_rate()` measures it, and nothing should call `break_even()`
 with the default when a prediction series is available.
 
@@ -144,6 +144,24 @@ def summarise_spread(bars: pd.DataFrame) -> SpreadSummary:
         max_bps=float(np.max(in_bps)),
         mean_absolute_return_bps=float(np.mean(np.abs(returns)) * 10_000),
     )
+
+
+def mean_absolute_return_bps(bars: pd.DataFrame) -> float:
+    """The average size of a move, in basis points, for a series with no quoted spread.
+
+    `summarise_spread` computes this too, and refuses to run without a `spread` column -
+    correctly, since its subject is the spread. But the break-even needs `E|r|` whether or
+    not a spread exists, and a series without one still has its own moves. Assuming a cost
+    is a stated assumption; assuming another instrument's volatility is a silent one.
+    """
+    if "close" not in bars.columns:
+        raise CostError("a 'close' column is required to measure the average move")
+
+    close = bars["close"].dropna().to_numpy(dtype="float64")
+    if len(close) < 2 or (close <= 0).any():
+        raise CostError("too few positive closes to measure the average move")
+
+    return float(np.mean(np.abs(np.diff(close) / close[:-1])) * 10_000)
 
 
 def break_even(

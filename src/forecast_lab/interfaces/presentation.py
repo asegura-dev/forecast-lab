@@ -109,6 +109,25 @@ def accuracy(value: float) -> str:
     return f"{value:.2%}"
 
 
+def unavailable_note(entries: Sequence[Mapping[str, Any]]) -> str:
+    """Name the estimators that did not load, and why.
+
+    Lives here rather than inline in the page because the inline version was wrong for as
+    long as it existed: it joined the entries as if they were strings, and each is a
+    `{"name", "reason"}` mapping. Nothing caught it. The branch is dead whenever all six
+    estimators import - which is every machine this was developed on - and it fires on
+    exactly the one the RUNBOOK documents, where Smart App Control blocks an unsigned
+    native DLL. The reader most in need of the message was the one who got a stack trace.
+
+    `runner.run()` returns `Any`, so the type checker could not see it either. Moving the
+    expression into this module puts it where a unit test can reach it without a browser.
+    """
+    return ", ".join(
+        f"{entry['name']} ({entry['reason']})" if entry.get("reason") else str(entry["name"])
+        for entry in entries
+    )
+
+
 def markdown_table(
     rows: Sequence[Mapping[str, Any]], styles: Mapping[str, str] | None = None
 ) -> str:

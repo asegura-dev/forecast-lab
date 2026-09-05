@@ -18,8 +18,8 @@ signal is not an artefact of searching, and it is not what the original analysis
 find - it is smaller, and it is real.
 
 **None of the eighteen makes money.** Traded at the venue's own quoted spread, they turn
-buy-and-hold's **+69.8%** into **-196.7%** over the same 40,587 bars. Hansen's test puts the
-probability that any of them beat holding gold at **p = 0.763**.
+buy-and-hold's **+100.9%** into **-86.9%** over the same 40,587 bars. Hansen's test puts the
+probability that any of them beat holding gold at **p = 0.761**.
 
 About one point of directional accuracy costs more to collect than it is worth: the
 closest configuration clears chance by 0.77 points and needs 1.23 to pay for its own
@@ -35,7 +35,7 @@ They had to be separated, because they disagree.
 |---|---|---|
 | **Is there skill?** | Pesaran-Timmermann against independence, corrected with Holm | **Yes.** 16 of 18 significant at 5%; **9 survive** the correction |
 | **Does anything make money?** | Strategy returns net of the measured spread | **No.** **0 of 18**, under either position framing |
-| **Does anything beat holding gold?** | Hansen SPA | **No.** p = 0.763 |
+| **Does anything beat holding gold?** | Hansen SPA | **No.** p = 0.761 |
 | **Does the best survive being the best?** | Romano-Wolf StepM, Deflated Sharpe | **No.** StepM rejects nothing; DSR = 0.0000 |
 
 Collapsing these into a single number - which "51.23% accuracy" does - throws away the more

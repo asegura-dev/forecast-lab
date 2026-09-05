@@ -54,12 +54,12 @@ Two questions had to be separated before either could be answered, because they 
 |---|---|---|
 | **Is there skill?** | Pesaran-Timmermann, corrected with Holm | **Yes. 9 of 18** configurations survive; the best at z = 4.61 |
 | **Does anything make money?** | Net of the venue's own spread | **No. 0 of 18**, under either position framing |
-| **Does anything beat holding gold?** | Hansen SPA | **No.** p = 0.763 |
+| **Does anything beat holding gold?** | Hansen SPA | **No.** p = 0.761 |
 | **Does the best survive being the best?** | Romano-Wolf StepM, Deflated Sharpe | **No.** StepM rejects nothing; DSR = 0.0000 |
 
 **There is a real directional edge and it is worth less than nothing.** Nine configurations carry a
 statistically robust signal of about one point of directional accuracy, corrected for having tried
-eighteen. Traded, those same models turn buy-and-hold's **+69.8%** into **-196.7%** over the same
+eighteen. Traded, those same models turn buy-and-hold's **+100.9%** into **-86.9%** over the same
 40,587 bars. One point of accuracy costs more to collect than it is worth
 ([ADR-013](docs/adr/ADR-013-skill-and-profit-are-separate-questions.md),
 [STATUS](docs/status/STATUS-2026-08-verdict.md)).

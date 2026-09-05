@@ -14,9 +14,10 @@ answer actually lies.
 
 **What a tie means.** ``>`` is strictly greater, so a bar closing exactly where it
 opened counts as DOWN. That sounds pedantic until the alignment is wrong: forward-filled
-rows are *all* ties, so the defect lands entirely on one class. The real series has 38
-genuine ties out of 23,180 - rare, but not zero, and never silently swept into a
-direction.
+rows are *all* ties, so the defect lands entirely on one class. The real series has 36
+genuine ties out of 23,181 - rare, but not zero, and never silently swept into a
+direction. (This said 38 out of 23,180 until 2026-09-04; `docs/status/notebook-baseline.json`
+and ADR-004 both say 36 over 23,181, and the sidecar is the record.)
 
 **Whether the move is worth acting on.** A move smaller than the cost of trading is not
 an opportunity, and a model rewarded for predicting it is being trained on noise. An

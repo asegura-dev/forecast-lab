@@ -30,6 +30,7 @@ from forecast_lab.interfaces.presentation import (
     scatter_spec,
     shell_path,
     significance,
+    unavailable_note,
 )
 
 # --- the defect this module exists because of --------------------------------------------
@@ -309,3 +310,41 @@ def test_a_fold_axis_is_ordinal_and_the_accuracy_axis_does_not_force_zero() -> N
 
     assert encoding["x"]["type"] == "ordinal"
     assert encoding["y"]["scale"]["zero"] is False
+
+
+# --- the note that used to raise -------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_the_unavailable_note_takes_the_shape_the_payload_actually_has() -> None:
+    """The bug this pins: the page joined the entries as if they were strings.
+
+    `train` emits `{"name", "reason"}` mappings, and `", ".join` over mappings raises
+    `TypeError`. Every gate stayed green because the branch is dead whenever all six
+    estimators import - so the only reader who ever reached it was the one on a machine
+    where something was blocked, which is the reader the message exists for.
+    """
+    entries = [
+        {"name": "XGBoost", "reason": "DLL load failed while importing _xgboost"},
+        {"name": "LightGBM", "reason": "cannot import name 'basic'"},
+    ]
+
+    note = unavailable_note(entries)
+
+    assert note == (
+        "XGBoost (DLL load failed while importing _xgboost), "
+        "LightGBM (cannot import name 'basic')"
+    )
+
+
+@pytest.mark.unit
+def test_the_unavailable_note_is_empty_when_everything_loaded() -> None:
+    """The healthy case, and the reason the defect survived: this is what CI always saw."""
+    assert unavailable_note([]) == ""
+
+
+@pytest.mark.unit
+def test_the_unavailable_note_survives_an_entry_with_no_reason() -> None:
+    """A name with no diagnosis is still worth printing; a `KeyError` here would trade a
+    missing sentence for a broken page."""
+    assert unavailable_note([{"name": "XGBoost"}]) == "XGBoost"

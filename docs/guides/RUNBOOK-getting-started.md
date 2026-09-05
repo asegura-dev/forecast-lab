@@ -195,9 +195,9 @@ Eighteen configurations, five folds and two bootstraps - about ninety seconds.
 
 - **1. Is there skill?** Pesaran-Timmermann against *independence*, not against a coin flip. The `independent` column is what the two marginals produce with no information passing between them - a constant predictor scores exactly zero against it. The `after Holm` column is the one that counts: sixteen configurations are significant at 5% and **nine survive** the correction for having tried eighteen.
 - **2. Is it worth anything?** Strategy returns net of the venue's own spread, against a benchmark of holding the asset. Expect **0 of 18** on both counts.
-- **3. Does the best survive having been the best?** Hansen SPA, Romano-Wolf StepM, and the Deflated Sharpe. Expect p = 0.763, nothing rejected, DSR 0.0000.
+- **3. Does the best survive having been the best?** Hansen SPA, Romano-Wolf StepM, and the Deflated Sharpe. Expect p = 0.761, nothing rejected, DSR 2.3e-10.
 
-The verdict to expect: **a real directional edge, worth less than nothing.** Nine configurations carry a robust signal of about one point; traded, they turn buy-and-hold's +69.8% into -196.7%.
+The verdict to expect: **a real directional edge, worth less than nothing.** Nine configurations carry a robust signal of about one point; traded, they turn buy-and-hold's +100.9% into -86.9%.
 
 **`--long-only` is the friendlier framing** - long-or-flat instead of long-or-short, so half the turnover and a wrong call merely forgoes a move instead of taking it backwards. It exists so the negative result cannot be blamed on the harsher one. It does not change the count.
 

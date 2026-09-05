@@ -47,8 +47,8 @@ Turnover is counted **inside folds only**. Charging a round trip between the las
 
 | Series | Lag-1 autocorrelation |
 |---|---:|
-| RSI-14 | **+0.9293** |
-| Realised volatility, 24h | **+0.9888** |
+| Realised volatility (168h) | **+0.9994** |
+| MACD signal | **+0.9970** |
 | Log return | -0.0173 |
 | The label (direction) | -0.0246 |
 | **Model correctness** | **-0.0199** |

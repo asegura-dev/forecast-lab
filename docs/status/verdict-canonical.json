@@ -3,7 +3,7 @@
   "timeframe": "1H",
   "horizon": 1,
   "mode": "focus",
-  "generated_at": "2026-08-30T18:43:08.556085+00:00",
+  "generated_at": "2026-09-04T15:39:02.631982+00:00",
   "folds": 5,
   "scored_bars": 40587,
   "configurations": 18,
@@ -164,100 +164,100 @@
   },
   "profit": {
     "benchmark": "always-long",
-    "benchmark_mean_bps": 0.17189705059684363,
-    "benchmark_cumulative": 0.6976785592574093,
+    "benchmark_mean_bps": 0.19789378510632621,
+    "benchmark_cumulative": 1.0090834770437485,
     "profitable": 0,
     "beating_benchmark": 0,
     "per_configuration": {
       "Logistic Regression [raw]": {
-        "mean_bps": -0.4847013967790015,
-        "cumulative": -1.9672575591069332
+        "mean_bps": -0.4740963870149254,
+        "cumulative": -0.8686536791266719
       },
       "Logistic Regression [pca-95]": {
-        "mean_bps": -0.5271722705701835,
-        "cumulative": -2.1396340945632035
+        "mean_bps": -0.5146515196273612,
+        "cumulative": -0.888591728188951
       },
       "Logistic Regression [pca-90]": {
-        "mean_bps": -0.5305053316666742,
-        "cumulative": -2.1531619896355307
+        "mean_bps": -0.5179432090601829,
+        "cumulative": -0.8900673033599492
       },
       "Naive Bayes [raw]": {
-        "mean_bps": -0.5247982208460431,
-        "cumulative": -2.1299985389478353
+        "mean_bps": -0.5150592510219889,
+        "cumulative": -0.8887667350047316
       },
       "Naive Bayes [pca-95]": {
-        "mean_bps": -0.5285982629632685,
-        "cumulative": -2.145421769889018
+        "mean_bps": -0.5145697305555582,
+        "cumulative": -0.8885542338312002
       },
       "Naive Bayes [pca-90]": {
-        "mean_bps": -0.5440522419155254,
-        "cumulative": -2.208144834262543
+        "mean_bps": -0.5314927898001979,
+        "cumulative": -0.8959524109413302
       },
       "Random Forest [raw]": {
-        "mean_bps": -0.61698311972279,
-        "cumulative": -2.504149388018888
+        "mean_bps": -0.6107617343409713,
+        "cumulative": -0.9245775641181078
       },
       "Random Forest [pca-95]": {
-        "mean_bps": -0.6266022711203704,
-        "cumulative": -2.543190637796247
+        "mean_bps": -0.6178698847334202,
+        "cumulative": -0.9267236461542248
       },
       "Random Forest [pca-90]": {
-        "mean_bps": -0.7414200050357899,
-        "cumulative": -3.0092013744387605
+        "mean_bps": -0.7342117599011581,
+        "cumulative": -0.9543007234532241
       },
       "XGBoost [raw]": {
-        "mean_bps": -0.6295019937633684,
-        "cumulative": -2.5549597420873833
+        "mean_bps": -0.6235672841693004,
+        "cumulative": -0.9283937979916802
       },
       "XGBoost [pca-95]": {
-        "mean_bps": -0.7984007837763226,
-        "cumulative": -3.2404692611129606
+        "mean_bps": -0.7934309110433895,
+        "cumulative": -0.9640617949535989
       },
       "XGBoost [pca-90]": {
-        "mean_bps": -0.7308639353709351,
-        "cumulative": -2.966357454490014
+        "mean_bps": -0.7265839040540861,
+        "cumulative": -0.9528581086994885
       },
       "LightGBM [raw]": {
-        "mean_bps": -0.5358494734219016,
-        "cumulative": -2.174852257777472
+        "mean_bps": -0.5291945173392051,
+        "cumulative": -0.8949572431513728
       },
       "LightGBM [pca-95]": {
-        "mean_bps": -0.9409580789325688,
-        "cumulative": -3.8190665549636167
+        "mean_bps": -0.9350117050815876,
+        "cumulative": -0.9797723353202277
       },
       "LightGBM [pca-90]": {
-        "mean_bps": -0.7344384858501639,
-        "cumulative": -2.98086548252006
+        "mean_bps": -0.7274855212449886,
+        "cumulative": -0.9530401946612018
       },
       "HistGradientBoosting [raw]": {
-        "mean_bps": -0.6886600924471924,
-        "cumulative": -2.7950647172154195
+        "mean_bps": -0.682470154443983,
+        "cumulative": -0.9436199222555403
       },
       "HistGradientBoosting [pca-95]": {
-        "mean_bps": -0.572952661907435,
-        "cumulative": -2.3254429688837064
+        "mean_bps": -0.5646925435060014,
+        "cumulative": -0.9090607794520859
       },
       "HistGradientBoosting [pca-90]": {
-        "mean_bps": -0.5715934633773342,
-        "cumulative": -2.319926389809586
+        "mean_bps": -0.5653611910461653,
+        "cumulative": -0.9093032174187424
       }
     }
   },
   "multiplicity": {
-    "spa_p_lower": 0.763,
-    "spa_p_consistent": 0.763,
+    "spa_p_lower": 0.761,
+    "spa_p_consistent": 0.761,
     "spa_p_upper": 1.0,
     "spa_better": [],
     "stepm_rejected": [],
     "deflated_sharpe": {
       "configuration": "Logistic Regression [raw]",
-      "sharpe_per_bar": -0.021233407613379152,
-      "skew": -0.7480633261950753,
-      "kurtosis": 28.29203964092257,
+      "sharpe_per_bar": -0.020789984880623415,
+      "skew": -0.6901855025386642,
+      "kurtosis": 26.981814642915875,
       "trials": 18,
-      "probabilistic": 8.336661667791142e-06,
-      "expected_maximum": 0.009803507248031054,
-      "deflated": 1.5557694840213364e-10,
+      "probabilistic": 1.2615430620313339e-05,
+      "expected_maximum": 0.009976387203712083,
+      "deflated": 2.269536273658434e-10,
       "survives": false
     }
   }

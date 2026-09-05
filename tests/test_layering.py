@@ -307,7 +307,10 @@ def test_matplotlib_stays_in_the_plotting_module() -> None:
             if any(n.split(".")[0] == "matplotlib" for n in names):
                 offenders.append(f"{where}:{node.lineno}")
 
-    assert not offenders, f"matplotlib belongs in {PLOT_QUARANTINE}. Found: {offenders}"
+    assert not offenders, (
+        f"matplotlib belongs in {PLOT_QUARANTINE} - or in interfaces/cli.py, which "
+        f"imports it only to check availability before writing figures. Found: {offenders}"
+    )
 
 
 #: `SRC` already ends in the package name, so the interfaces package is one level below

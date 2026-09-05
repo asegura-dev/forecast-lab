@@ -19,7 +19,7 @@
 
 *Why:* a predictor that always says UP on a series that rises 52% of the time scores 52%, beats a coin flip by two points, passes a naive binomial test, and knows **nothing**. This project has spent twelve ADRs insisting that a score without its baseline is not a result; testing accuracy against 0.5 would be that error committed one last time. The independence benchmark is what the marginals alone imply, and against it the constant predictor scores exactly zero - which a test pins.
 
-Measured, the independence benchmark sits at **50.09%-50.19%**, not the 50.26% of the constant predictor. The two nulls are different and neither substitutes for the other.
+Measured, the independence benchmark sits at **50.03%-50.19%** across the six configurations tabled below and **50.03%-50.33%** across all eighteen, not the 50.26% of the constant predictor. The two nulls are different and neither substitutes for the other.
 
 ### 3. Multiplicity is corrected everywhere, including on this project's own results
 
@@ -43,10 +43,10 @@ Holm for the eighteen Pesaran-Timmermann tests; Hansen's SPA and Romano-Wolf's S
 |---|---|---|
 | Is there skill? | Pesaran-Timmermann + Holm | **Yes. 9 of 18** survive across 18 tests; the best is z = 4.61 |
 | Does anything make money? | Net of the venue's spread | **No. 0 of 18**, under either position framing |
-| Does anything beat holding gold? | Hansen SPA | **No.** p = 0.763 |
+| Does anything beat holding gold? | Hansen SPA | **No.** p = 0.761 |
 | Does the best survive being the best? | Romano-Wolf StepM, DSR | **No.** StepM rejects nothing; DSR = 0.0000 |
 
-The gap is the whole finding. The best configuration returns **-196.7%** over the scored period while holding the asset returns **+69.8%**. Nine configurations carry a statistically robust directional signal of about one point, and one point of directional accuracy is worth less than the spread costs to collect it.
+The gap is the whole finding. The best configuration returns **-86.9%** over the scored period while holding the asset returns **+100.9%**. Nine configurations carry a statistically robust directional signal of about one point, and one point of directional accuracy is worth less than the spread costs to collect it.
 
 **This is a stronger result than "we found nothing", and it is also the one the data supports.** A reader who suspects the project of motivated reasoning should note that the same battery, on the same data, could have returned "no skill either" - and that the tests are shown a case where each effect is real, so a battery that only ever says "not significant" would fail its own suite.
 

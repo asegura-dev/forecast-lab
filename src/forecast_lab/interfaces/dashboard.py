@@ -50,6 +50,7 @@ from forecast_lab.interfaces.presentation import (
     scatter_spec,
     shell_path,
     significance,
+    unavailable_note,
 )
 from forecast_lab.interfaces.published import Published, available_for, find
 from forecast_lab.interfaces.runner import Invocation, RunnerError, run
@@ -80,8 +81,9 @@ GLOSSARY = {
         "maximum of eighteen draws from noise is not centred on zero."
     ),
     "cumulative": (
-        "The sum of per-bar returns over the scored period - not a drawdown. It exceeds "
-        "100% because it is a sum over 40,000 bars, not a capital loss."
+        "What one unit of capital became over the scored period, reinvested each bar and "
+        "net of costs. It cannot pass -100%: this entry used to explain why a figure did, "
+        "which was a defect being described rather than fixed."
     ),
     "inflation": (
         "How much of a correlation is shared trend: the level correlation minus the return "
@@ -634,7 +636,9 @@ def page_models(directory: str, symbol: str, timeframe: str, mode: str) -> None:
         return
 
     if payload["models_unavailable"]:
-        st.warning(f"Not run on this machine: {', '.join(payload['models_unavailable'])}")
+        st.warning(
+            f"Not run on this machine: {unavailable_note(payload['models_unavailable'])}"
+        )
 
     columns = st.columns(2)
     columns[0].metric("Selected on validation", payload["selected_on_validation"])
@@ -937,11 +941,16 @@ def _significance(payload: dict[str, Any]) -> None:
 def page_reasoning() -> None:
     st.header("The reasoning")
     st.markdown(
-        "Decisions and their trade-offs in the ADRs; what each experiment measured in the "
-        "STATUS logs. Both written as the work happened rather than assembled afterwards."
+        "The **book** explains the whole apparatus as it now stands, formula by formula. The "
+        "**ADRs** record why each decision was made at the moment it was made, and the "
+        "**STATUS logs** what each experiment measured - both written as the work happened "
+        "rather than assembled afterwards."
     )
-    documents = sorted((ROOT / "docs" / "adr").glob("*.md")) + sorted(
-        (ROOT / "docs" / "status").glob("*.md")
+    # The book leads because it is the way in; the ADRs and logs are the record behind it.
+    documents = (
+        sorted((ROOT / "docs" / "book").glob("*.md"))
+        + sorted((ROOT / "docs" / "adr").glob("*.md"))
+        + sorted((ROOT / "docs" / "status").glob("*.md"))
     )
     if not documents:
         st.info("No documents in this checkout.")
@@ -949,7 +958,12 @@ def page_reasoning() -> None:
     # One document at a time. Rendering all twenty-one on every rerun pushed 200 KB of
     # Markdown through the page, and their relative image and cross-document links are all
     # dead in a browser.
-    names = [d.stem for d in documents]
+    # Twenty-eight stems in one flat list is a scroll, not a menu. The parent directory is
+    # the only grouping that matters here and it is already the reading order.
+    labels = {
+        "book": "The book", "adr": "Decisions (ADR)", "status": "Experiments (STATUS)"
+    }
+    names = [f"{labels[d.parent.name]} - {d.stem}" for d in documents]
     chosen = st.selectbox("Document", names, key="document")
     body = documents[names.index(chosen)].read_text(encoding="utf-8")
     st.markdown(body)

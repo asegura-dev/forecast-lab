@@ -34,8 +34,8 @@ A persistent model pays the spread less often and faces a lower bar. **The publi
 
 | | Lag-1 autocorrelation |
 |---|---:|
-| RSI-14 | **+0.9293** |
-| Realised volatility (24h) | **+0.9888** |
+| Realised volatility (168h) | **+0.9994** |
+| MACD signal | **+0.9970** |
 | The label (direction) | **-0.0246** |
 | **Model correctness** | **-0.0199** |
 
@@ -43,7 +43,7 @@ The features are strongly dependent. The thing being averaged is not a feature -
 
 So `0.5/√n` was already honest, if anything conservative, and the corrected figure makes the closest model's shortfall **1.91 standard errors rather than 1.86** - a caveat that dissolves in the direction of the conclusion it was hedging.
 
-**Trade-off, and the reason this is not self-serving:** a negative result about one's own caveat is worthless if the instrument could not have found the opposite. Pointed at a synthetic AR(1) correctness series the same code returns an inflation of **3.64x** and an effective sample of 1,513 out of 20,000. That case is pinned by a test, so the null finding stays falsifiable.
+**Trade-off, and the reason this is not self-serving:** a negative result about one's own caveat is worthless if the instrument could not have found the opposite. Pointed at a synthetic AR(1) correctness series the same code returns an inflation of **3.64x** and an effective sample of 1,513 out of 20,000. A test pins the property rather than these numbers - on 6,000 synthetic rows it asserts an inflation above 2.0 and an effective sample below half of n - so the null finding stays falsifiable, and the two figures above are an illustration from a one-off probe rather than a fixed expectation.
 
 ### 3. `arch` is used and deliberately not quarantined
 

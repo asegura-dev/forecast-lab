@@ -1,7 +1,7 @@
 # STATUS 2026-08-30 - A real edge, worth less than nothing
 
 - **Question:** two of them, kept apart. Is the directional signal real once corrected for having tried eighteen configurations? And does trading it beat holding the asset?
-- **Verdict:** **Yes and no, decisively both.** Nine of eighteen configurations survive Holm on Pesaran-Timmermann - the best at z = 4.61, p < 0.00001 - so the directional edge is not an artefact of searching. **Zero of eighteen make money.** The best loses **196.7%** over the scored period while holding gold returns **+69.8%**; Hansen's SPA puts the probability that anything beat the benchmark at p = 0.763, Romano-Wolf's StepM rejects nothing, and the Deflated Sharpe of the least-bad configuration is 0.0000. One point of directional accuracy costs more to collect than it is worth.
+- **Verdict:** **Yes and no, decisively both.** Nine of eighteen configurations survive Holm on Pesaran-Timmermann - the best at z = 4.61, p < 0.00001 - so the directional edge is not an artefact of searching. **Zero of eighteen make money.** The best loses **86.9%** over the scored period while holding gold returns **+100.9%**; Hansen's SPA puts the probability that anything beat the benchmark at p = 0.761, Romano-Wolf's StepM rejects nothing, and the Deflated Sharpe of the least-bad configuration is 2.3e-10. One point of directional accuracy costs more to collect than it is worth.
 - **Command:** `forecast-lab verdict --target XAUUSD --timeframe 1H`
 - **Machine-readable output:** [verdict-canonical.json](verdict-canonical.json)
 - **Inputs:** `raw/*.csv` (Dukascopy, 2018-01 to 2026-08), hashed in [data-manifest.json](data-manifest.json). Figures are pinned to the **2026-08-26 snapshot**; `fetch` extends the series forward, so a later download changes every hash and `verify` will say so. 40,587 scored bars over five walk-forward folds, 18 configurations, long-or-short at the venue's measured median spread of 1.86 bps.
@@ -29,30 +29,30 @@ Net of the venue's own median spread, positions long-or-short, benchmark always-
 
 | Configuration | bps/bar | Cumulative |
 |---|---:|---:|
-| Logistic Regression [raw] | -0.4847 | **-196.73%** |
-| Naive Bayes [raw] | -0.5248 | -213.00% |
-| Logistic Regression [pca-95] | -0.5272 | -213.96% |
-| **always-long (benchmark)** | **+0.1719** | **+69.77%** |
+| Logistic Regression [raw] | -0.4741 | **-86.87%** |
+| Naive Bayes [pca-95] | -0.5146 | -88.86% |
+| Logistic Regression [pca-95] | -0.5147 | -88.86% |
+| **always-long (benchmark)** | **+0.1979** | **+100.91%** |
 
 **0 of 18 make money at all. 0 of 18 beat holding the asset.**
 
-Under the friendlier long-or-flat framing - half the turnover, and a wrong call merely forgoes a move instead of taking it backwards - the answer does not change: the best loses **63.5%** against the benchmark's +69.8%, and it is still 0 of 18 on both counts. The result cannot be blamed on the harsher framing.
+Under the friendlier long-or-flat framing - half the turnover, and a wrong call merely forgoes a move instead of taking it backwards - the answer does not change: the best loses **47.0%** against the benchmark's +100.9%, and it is still 0 of 18 on both counts. The result cannot be blamed on the harsher framing.
 
 ## 3. Does the best survive having been the best?
 
 | Test | Result |
 |---|---|
-| Hansen SPA | p = **0.763** (lower 0.763, upper 1.000) - nothing beats the benchmark |
+| Hansen SPA | p = **0.761** (lower 0.761, upper 1.000) - nothing beats the benchmark |
 | Romano-Wolf StepM | rejects **nothing** |
-| Deflated Sharpe on the least-bad | **0.0000** - does not survive |
+| Deflated Sharpe on the least-bad | **2.27e-10** - does not survive |
 
-The Deflated Sharpe is computed on Logistic Regression [raw]: Sharpe **-0.02123 per bar** (about -1.99 annualised), skew **-0.75**, kurtosis **28.3**, against an expected maximum of +0.00980 for eighteen trials. A negative Sharpe cannot survive deflation, and the fat left tail the EDA found in the returns is carried into the calculation rather than assumed away.
+The Deflated Sharpe is computed on Logistic Regression [raw]: Sharpe **-0.02079 per bar** (about -1.95 annualised), skew **-0.69**, kurtosis **27.0**, against an expected maximum of +0.00998 for eighteen trials. A negative Sharpe cannot survive deflation, and the fat left tail the EDA found in the returns is carried into the calculation rather than assumed away.
 
 ## 4. The finding
 
 **There is a real directional edge and it is worth less than nothing.**
 
-Nine configurations carry a statistically robust signal of roughly one point of directional accuracy, surviving a correction for having tried eighteen. That signal is worth less than the spread costs to collect: the same models, traded, turn +69.8% of buy-and-hold into -196.7%.
+Nine configurations carry a statistically robust signal of roughly one point of directional accuracy, surviving a correction for having tried eighteen. That signal is worth less than the spread costs to collect: the same models, traded, turn +100.9% of buy-and-hold into -86.9%.
 
 That is a more useful result than either half alone. "There is no signal" would have been wrong. "We found an edge" would have been true and dangerously incomplete. What the data supports is that **the market is not perfectly efficient at this horizon, and the inefficiency is smaller than the cost of exploiting it** - which is roughly what an efficient market with frictions is supposed to look like.
 
