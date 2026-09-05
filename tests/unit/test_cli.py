@@ -515,3 +515,72 @@ def test_a_cumulative_return_is_exact_for_the_loss_that_ends_it() -> None:
     from forecast_lab.interfaces.cli import _compounded
 
     assert _compounded(pd.Series([-1.0, 5.0, 5.0])) == pytest.approx(-1.0)
+
+
+# --- which dataset a bare command reads --------------------------------------------------------
+
+#: Every command's default data directory, and why it is that one. Two commands read the
+#: prior project's exports because that is their subject; everything else reads the
+#: canonical dataset `fetch` downloads.
+#:
+#: The list exists because the defaults had drifted apart silently. `features`, `explore`
+#: and `train` were built when reference was the only data there was, and kept pointing at
+#: it after `fetch` arrived - so a reader following the RUNBOOK got a break-even of 51.92%
+#: from `train` and 53.49% from `verdict` and had no way to know they were different
+#: datasets. Nothing was inconsistent; the two numbers simply answered different questions
+#: without saying so.
+DEFAULT_DIRECTORIES: dict[str, tuple[str, str]] = {
+    "symbols": ("directory", "raw"),
+    "fetch": ("destination", "raw"),
+    "align": ("directory", "raw"),
+    "explore": ("directory", "raw"),
+    "features": ("directory", "raw"),
+    "train": ("directory", "raw"),
+    "validate": ("directory", "raw"),
+    "verdict": ("directory", "raw"),
+    "baseline": ("directory", "reference"),  # its subject is the original's published baseline
+    "ingest": ("destination", "reference"),  # it writes those exports there
+}
+
+
+@pytest.mark.unit
+def test_every_command_reads_the_dataset_this_list_says_it_does() -> None:
+    """A silent split between datasets is the defect this pins.
+
+    Read from the source rather than by invoking each command, because the question is what
+    a *default* is - and the moment a test passes `--dir` to find out, it is no longer
+    asking about the default.
+    """
+    source = ast.parse((SRC / "interfaces" / "cli.py").read_text(encoding="utf-8"))
+    found: dict[str, tuple[str, str]] = {}
+    for node in ast.walk(source):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        command = next(
+            (
+                str(d.args[0].value)
+                for d in node.decorator_list
+                if isinstance(d, ast.Call)
+                and isinstance(d.func, ast.Attribute)
+                and d.func.attr == "command"
+                and d.args
+                and isinstance(d.args[0], ast.Constant)
+            ),
+            None,
+        )
+        if command is None:
+            continue
+        names = [argument.arg for argument in node.args.args]
+        offset = len(names) - len(node.args.defaults)
+        for index, default in enumerate(node.args.defaults):
+            if not isinstance(default, ast.Name) or not default.id.endswith("_DIR"):
+                continue
+            found[command] = (
+                names[offset + index],
+                "reference" if "REFERENCE" in default.id else "raw",
+            )
+
+    assert found == DEFAULT_DIRECTORIES, (
+        "a command's default dataset changed. Every entry here is a claim the RUNBOOK and "
+        "the committed sidecars depend on, so update both before updating this list."
+    )

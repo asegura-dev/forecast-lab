@@ -1,0 +1,188 @@
+{
+  "target": "XAUUSD",
+  "timeframe": "1H",
+  "mode": "focus",
+  "symbols": [
+    "XAUUSD"
+  ],
+  "rows": 50948,
+  "columns": 19,
+  "warmup_dropped": 199,
+  "first": "2018-01-12T14:00:00+00:00",
+  "last": "2026-08-26T14:00:00+00:00",
+  "policy_passes": true,
+  "violations": [],
+  "features": [
+    {
+      "name": "XAUUSD_return",
+      "scale": "scale-free",
+      "relative_change": 3.885087955724199e-15,
+      "worst_change": 3.885087955724199e-15,
+      "adf_pvalue": 1.5649213053957885e-23,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_log_return",
+      "scale": "scale-free",
+      "relative_change": 3.885087955724199e-15,
+      "worst_change": 3.885087955724199e-15,
+      "adf_pvalue": 1.9407238353060607e-23,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_range_pct",
+      "scale": "scale-free",
+      "relative_change": 2.3347057130713373e-15,
+      "worst_change": 2.86827207313238e-15,
+      "adf_pvalue": 3.3965952026326994e-08,
+      "kpss_pvalue": 0.02228983832154372,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_realised_vol_24",
+      "scale": "scale-free",
+      "relative_change": 3.967092335034454e-15,
+      "worst_change": 7.279068504650375e-15,
+      "adf_pvalue": 2.841556674824512e-06,
+      "kpss_pvalue": 0.04636822236247856,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_realised_vol_168",
+      "scale": "scale-free",
+      "relative_change": 3.540640945513276e-15,
+      "worst_change": 4.582845739958716e-15,
+      "adf_pvalue": 0.012300137990317556,
+      "kpss_pvalue": 0.01,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_dist_sma_20",
+      "scale": "scale-free",
+      "relative_change": 6.128490870536933e-15,
+      "worst_change": 7.660613588171167e-15,
+      "adf_pvalue": 7.760423713720586e-22,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_dist_sma_50",
+      "scale": "scale-free",
+      "relative_change": 2.6167779919099433e-15,
+      "worst_change": 3.489037322546591e-15,
+      "adf_pvalue": 7.43998548709858e-20,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_dist_sma_200",
+      "scale": "scale-free",
+      "relative_change": 2.973962966512194e-15,
+      "worst_change": 4.460944449768291e-15,
+      "adf_pvalue": 2.6470936983158555e-06,
+      "kpss_pvalue": 0.06282400751998732,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_dist_ema_12",
+      "scale": "scale-free",
+      "relative_change": 8.86098291425376e-15,
+      "worst_change": 1.550672009994408e-14,
+      "adf_pvalue": 1.78893338313472e-21,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_dist_ema_26",
+      "scale": "scale-free",
+      "relative_change": 8.509129907197062e-15,
+      "worst_change": 1.418188317866177e-14,
+      "adf_pvalue": 1.9143053148946326e-19,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_rsi_14",
+      "scale": "scale-free",
+      "relative_change": 7.578776442284518e-15,
+      "worst_change": 1.8037487932637153e-14,
+      "adf_pvalue": 8.356575096059659e-25,
+      "kpss_pvalue": 0.04738879363357739,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_roc_12",
+      "scale": "scale-free",
+      "relative_change": 2.070505591964037e-15,
+      "worst_change": 2.54082890188327e-15,
+      "adf_pvalue": 1.6923549580212853e-23,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_adx_14",
+      "scale": "scale-free",
+      "relative_change": 2.8192053598060195e-14,
+      "worst_change": 0.0021739904553280255,
+      "adf_pvalue": 1.1096137554035036e-21,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_macd",
+      "scale": "scale-free",
+      "relative_change": 2.1495342335814713e-14,
+      "worst_change": 3.6749502089266486e-14,
+      "adf_pvalue": 1.1564621495990801e-17,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_macd_signal",
+      "scale": "scale-free",
+      "relative_change": 2.0900239057106628e-14,
+      "worst_change": 3.512861492841488e-14,
+      "adf_pvalue": 6.260116292724938e-17,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_macd_diff",
+      "scale": "scale-free",
+      "relative_change": 4.734011085074451e-14,
+      "worst_change": 8.529263969724306e-14,
+      "adf_pvalue": 3.497951071399323e-27,
+      "kpss_pvalue": 0.1,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_atr_pct",
+      "scale": "scale-free",
+      "relative_change": 1.3711954247943575e-15,
+      "worst_change": 2.243774331481676e-15,
+      "adf_pvalue": 5.67279504029636e-06,
+      "kpss_pvalue": 0.023927498357519686,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_bb_wband",
+      "scale": "scale-free",
+      "relative_change": 5.657597271666517e-11,
+      "worst_change": 1.7151768093279335e-10,
+      "adf_pvalue": 2.0131582553541176e-08,
+      "kpss_pvalue": 0.09187161163837153,
+      "n_finite": 5000
+    },
+    {
+      "name": "XAUUSD_bb_pband",
+      "scale": "scale-free",
+      "relative_change": 4.793915677346881e-10,
+      "worst_change": 4.585603951576848e-09,
+      "adf_pvalue": 3.743618389226294e-30,
+      "kpss_pvalue": 0.09899786949637977,
+      "n_finite": 5000
+    }
+  ]
+}

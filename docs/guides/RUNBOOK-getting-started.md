@@ -64,13 +64,15 @@ uv run forecast-lab align --target XAUUSD --timeframe 1H --json
 
 **What you are looking at.** The target's own bars define the timeline and nothing may extend it. Auxiliary symbols are read onto it by carrying their last known value forward, and each one reports how often that happened and how old the value got.
 
-Expect roughly: VIX carried on 8.0% of rows, DXY on 7.1%, the currencies under 0.2%, and crypto absent from 25.5% because it starts a year late. Those are facts about trading calendars, not defects. What would be a defect is losing track of them, because "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hours ago" are different statements and only one is true.
+On the canonical dataset - which is what this command reads with no `--dir` - expect roughly: **DXY carried on 10.1% of rows**, the two indices around 1.5%, and everything else under 0.2%, over **51,147 rows and 76 columns**. Those are facts about trading calendars, not defects. What would be a defect is losing track of them, because "the S&P is at 4,500" and "the S&P was at 4,500, sixteen hours ago" are different statements and only one is true.
+
+The reference exports give different figures - VIX on 8.0%, DXY on 7.1%, crypto absent from 25.5% because it starts a year late - and this guide quoted **those** against the canonical command for a fortnight, which is its own small illustration of the point. VIX is not in the canonical dataset at all ([ADR-002](../adr/ADR-002-data-source-and-symbol-set.md) drops it), so the figure could not have appeared no matter how the command was run.
 
 ## 4. Describing the data before modelling it
 
 ```
-uv run forecast-lab explore --target XAUUSD --timeframe 1H --dir data/reference
-uv run forecast-lab explore --target XAUUSD --timeframe 1H --dir data/reference --figures docs/status/figures
+uv run forecast-lab explore --target XAUUSD --timeframe 1H
+uv run forecast-lab explore --target XAUUSD --timeframe 1H --figures docs/status/figures
 ```
 
 **What to read, and why each one is there.** Every panel exists because the original project's EDA got the same question wrong in a way that is invisible from the code.
@@ -93,13 +95,13 @@ uv run forecast-lab baseline --target XAUUSD --timeframe 1H --dir data/reference
 - **`random (train frequencies) 51.70%`** - a seeded coin flip, scoring **above** the honest baseline. Nothing has been discovered; it is the plainest demonstration that at this sample size the noise is the size of everything being argued about.
 - **`A rule fitted on this block would gain 2.01% for free`** - the distance between the honest baseline and an oracle. Larger than the effect anyone is trying to detect.
 
-Break-even is **51.92%** under an assumed 1 bp round trip, and **53.49%** against the spread measured at the venue. Nothing available without a model reaches either. On a series carrying a `spread` column the `train` command computes this itself and says so; on the reference exports, which have none, it falls back to the assumption and labels it.
+Break-even is **53.49%** against the spread measured at the venue, and **51.92%** under an assumed 1 bp round trip. Nothing available without a model reaches either. Every analysis command reads the canonical dataset by default, so `train` computes this from the `spread` column and says so; pass `--dir data/reference` and it says instead that no spread exists, assumes 1 bp, and states the average move it measured that assumption against. **Which dataset produced a number is always in the line that prints it** - it had to be, because for a fortnight `train` and `verdict` defaulted to different ones.
 
 ## 6. The feature matrix
 
 ```
-uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/reference
-uv run forecast-lab features --target XAUUSD --timeframe 1H --dir data/reference --mode whole
+uv run forecast-lab features --target XAUUSD --timeframe 1H
+uv run forecast-lab features --target XAUUSD --timeframe 1H --mode whole
 ```
 
 Expect **22,982 rows x 19 columns** in focus mode and **x 199** in whole - and, critically, **the same index in both**. The original project's two modes covered different rows (24,232 against 22,441), so comparing them mixed a change of feature set with a change of sample.
@@ -119,14 +121,14 @@ uv run forecast-lab features --target XAUUSD --timeframe 1H --json
 To check the pipeline is genuinely symbol-agnostic, point it somewhere else:
 
 ```
-uv run forecast-lab features --target BTCUSD --timeframe 1H --dir data/reference --mode whole
+uv run forecast-lab features --target BTCUSD --timeframe 1H --mode whole
 ```
 
 ## 7. Fitting the models
 
 ```
-uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference
-uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference --no-pca
+uv run forecast-lab train --target XAUUSD --timeframe 1H
+uv run forecast-lab train --target XAUUSD --timeframe 1H --no-pca
 ```
 
 Six estimators x three representations (raw, PCA at 95% and 90%), about twelve seconds.
@@ -137,7 +139,15 @@ Six estimators x three representations (raw, PCA at 95% and 90%), about twelve s
 - **`Spec.`** at 0.00% with high recall means the model is a constant. The command says so explicitly when it happens.
 - **`Repr.`** shows the retained component count in brackets for PCA rows - `pca-90 (6)` means 90% of the training variance needed six components.
 
-Expect the run to select **XGBoost** and report it losing to the baseline by about 0.21 points. That is the project's central finding reproduced from data, and [STATUS 2026-08-24](../status/STATUS-2026-08-models.md) works through what it does and does not establish.
+Expect the run to select **Random Forest [raw]** and report it beating the baseline by about **0.15 points** on test - a positive edge that is nowhere near the 53.49% this data's own spread demands.
+
+On the reference exports the same command selects **XGBoost [raw]** at **-0.21 points**:
+
+```
+uv run forecast-lab train --target XAUUSD --timeframe 1H --dir data/reference
+```
+
+**Both are the project's central finding, and the pair is more useful than either.** One dataset hands you a small positive edge and the other a small negative one; neither comes close to paying for itself, which is the point. [STATUS 2026-08-24](../status/STATUS-2026-08-models.md) works through what a single run does and does not establish.
 
 Add `--figures` to write the charts:
 

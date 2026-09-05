@@ -124,6 +124,15 @@ console = Console()
 #: relative to it - so `reference/XAUUSD_1H.csv` and `raw/XAUUSD_1H.csv` stay distinct.
 DATA_ROOT = Path("data")
 DEFAULT_DATA_DIR = DATA_ROOT / "raw"
+#: The prior project's exports, kept to reproduce its published baseline. Only two commands
+#: default here: `ingest`, whose whole job is to read them, and `baseline`, whose whole job
+#: is to reproduce the original's numbers on the original's data.
+#:
+#: `features`, `explore` and `train` used to default here too - built during Phase 1, when
+#: reference was the only data there was, and never revisited once `fetch` existed. The
+#: result was a split default nothing announced: a reader following the RUNBOOK got a
+#: break-even of 51.92% from `train` and 53.49% from `verdict`, on two different datasets,
+#: with no line of output saying so. Pinned by a test now (ADR-002 sec. 6).
 DEFAULT_REFERENCE_DIR = DATA_ROOT / "reference"
 #: Committed, unlike the data it describes: it is what ties a published number to the
 #: bytes behind it (ADR-002 sec. 7).
@@ -395,7 +404,7 @@ def features_command(
     ] = "focus",
     directory: Annotated[
         Path, typer.Option("--dir", "-d", help="Directory holding the series.")
-    ] = DEFAULT_REFERENCE_DIR,
+    ] = DEFAULT_DATA_DIR,
     as_json: Annotated[
         bool, typer.Option("--json", help="Emit machine-readable output instead of a table.")
     ] = False,
@@ -562,7 +571,7 @@ def explore_command(
     ] = "1H",
     directory: Annotated[
         Path, typer.Option("--dir", "-d", help="Directory holding the series.")
-    ] = DEFAULT_REFERENCE_DIR,
+    ] = DEFAULT_DATA_DIR,
     figures: Annotated[
         Path | None, typer.Option("--figures", help="Write charts to this directory as PNG.")
     ] = None,
@@ -802,7 +811,7 @@ def train_command(
     ] = "focus",
     directory: Annotated[
         Path, typer.Option("--dir", "-d", help="Directory holding the series.")
-    ] = DEFAULT_REFERENCE_DIR,
+    ] = DEFAULT_DATA_DIR,
     pca: Annotated[
         bool, typer.Option("--pca/--no-pca", help="Also fit on PCA at 95% and 90% variance.")
     ] = True,

@@ -110,6 +110,16 @@ finding below as a pre-registered result would overstate it.
 - **Not a full cost model.** Slippage, the rollover surcharge and the overnight swap are
   unmodelled. Each *raises* the bar, so they cannot rescue a negative result - but a
   positive one would have needed them first.
+
+  **The swap is left untested on purpose, not overlooked.** The venue does not publish one,
+  and the alternative was to assume a plausible range and report break-evens against it.
+  That would put an assumed number in the one place this project claims not to have any:
+  [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) exists because the original
+  analysis compared its accuracy against a threshold nobody had measured. Publishing a
+  sensitivity band would repeat that, one layer up and better dressed. So the hypothesis is
+  named and left open: **a strategy holding positions overnight pays a cost this project has
+  not quantified, and the figures here are that much too kind.** Quantifying it needs a swap
+  series from the venue that priced the bars, and no such series exists in this data.
 - **Not other assets or horizons.** One instrument, one interval, one target.
 
 ## What would change the answer

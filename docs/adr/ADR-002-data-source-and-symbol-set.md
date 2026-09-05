@@ -86,6 +86,39 @@ The deeper reason it belonged elsewhere: whether a grid property is harmful depe
 
 *Why:* a manifest that lives inside an ignored directory ties no published result to any data. And a test that reads `data/` would skip itself in a clean clone and in CI - a gate that skips is decoration, not a guarantee. The tests stay hermetic on a synthetic fixture; provenance is a command the operator runs.
 
+### 8. The canonical dataset is what every analysis command reads by default
+
+Two commands are exempt and both for the same reason - the prior project's exports are their
+subject, not their input. `ingest` writes them; `baseline` reproduces the original's
+published numbers on the original's data, which cannot be done on any other data. Everything
+else - `align`, `explore`, `features`, `train`, `validate`, `verdict` - defaults to
+`data/raw`, the dataset `fetch` downloads.
+
+*Why this is an ADR and not a tidy-up:* it was not true until 2026-09-05, and the way it was
+untrue is the interesting part. `features`, `explore` and `train` were built during Phase 1,
+when the reference exports were the only data in existence, and nobody revisited their
+defaults once `fetch` arrived and `validate` and `verdict` were written against `data/raw`.
+**The result was a split nothing announced.** A reader following the RUNBOOK got a break-even
+of **51.92%** from `train` and **53.49%** from `verdict` - two different datasets, two
+different answers, no line of output saying they were not comparable.
+
+Nothing was inconsistent. Each command was correct about its own dataset, each figure was
+reproducible, and all three gates were green throughout. The defect lived in the space
+between two commands that nobody had asked to agree.
+
+*The trade-off:* `train` and `explore` now report different numbers than they did, and the
+committed sidecars generated from reference (`model-comparison.json`, `eda-summary.json`,
+`features-policy.json`) are no longer what the bare command produces. That is accepted, and
+handled the way this repository already handled it once - by keeping both and naming them:
+each has a `-canonical` sibling, and [features-policy-canonical.json](../status/features-policy-canonical.json)
+was generated to complete the set. A figure whose dataset is ambiguous is worse than two
+figures whose datasets are labelled.
+
+*What stops it recurring:* `tests/unit/test_cli.py::test_every_command_reads_the_dataset_this_list_says_it_does`
+reads every command's default out of the source and compares it against a list with a reason
+per entry. A default that drifts now fails a gate instead of quietly answering a different
+question.
+
 ## Consequences
 
 - The repository becomes **runnable by a stranger**: clone, fetch, and every published number can be reproduced. This is the single largest gain of this ADR, and it was a side effect rather than the goal.

@@ -25,6 +25,18 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-05 - One dataset by default, and the swap declared rather than assumed
+
+### Changed
+
+- **`features`, `explore` and `train` now read the canonical dataset**, like every other analysis command. They had defaulted to the prior project's exports since Phase 1, when those were the only data there was, and nobody revisited it once `fetch` existed - so a reader following the RUNBOOK got a break-even of **51.92%** from `train` and **53.49%** from `verdict`, two datasets and two answers with no line of output saying they were not comparable. Nothing was inconsistent; each command was right about its own data. [ADR-002 sec. 8](docs/adr/ADR-002-data-source-and-symbol-set.md) records it, and a test now reads every default out of the source against a list with a reason per entry.
+- **[features-policy-canonical.json](docs/status/features-policy-canonical.json)** completes the `-canonical` set, so the bare command's output is on the record next to the reference run's. Comparing them makes ADR-006's argument better than the ADR did: **which** columns have ADF and KPSS disagreeing is itself sample-dependent - four on reference, five on the canonical run, three in common. A gate built on those tests would have failed different columns depending on how much data it was handed.
+
+### Documented
+
+- **The overnight swap is declared untested, on purpose.** The venue does not publish one, and the alternative was to assume a plausible range and report break-evens against it - which would put an assumed number in the one place this project claims not to have any. [ADR-010](docs/adr/ADR-010-costs-are-measured-not-assumed.md) exists because the original analysis compared its accuracy against a threshold nobody had measured; a sensitivity band would repeat that, one layer up and better dressed. [FINDINGS](FINDINGS.md) now names the hypothesis and leaves it open: a strategy holding overnight pays a cost this project has not quantified, and every figure here is that much too kind.
+- **The RUNBOOK's staleness figures were the reference panel's**, quoted against a command that reads the canonical dataset - which does not contain VIX at all, so the 8.0% it promised could not have appeared however the command was run. Now: DXY on 10.1%, the indices near 1.5%, over 51,147 rows.
+
 ## 2026-09-04 - The book
 
 ### Added
