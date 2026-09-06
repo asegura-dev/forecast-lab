@@ -293,11 +293,14 @@ Every command works identically either way. Substitute `python -m forecast_lab.i
 
 **`No 1H series for XAUUSD in data\raw`** - you fetched into one directory and are reading from another. `fetch` writes to `data/raw`, `ingest --from <path>` writes to `data/reference`, and every command that *reads* a series takes `--dir`.
 
-**`verify` reports a mismatch** - the bytes on disk are not the bytes a published number was computed from. Three causes, in order of likelihood:
+**`verify` says `EXTENDED`** - the common case, and not a fault. The series extends forward in time, so a fetch a week after the manifest was cut adds bars to every file. The command re-hashes the *recorded prefix* of each one and, when it matches, says so and exits 0: the bytes a published number came from are still there, at the front of the file. **The published figures stay pinned to the 2026-08-26 snapshot**, which is what the committed manifest describes, and anything you compute now simply uses more data than that.
 
-1. **You ran `fetch` again.** This is the common one and it is not a fault: the series extends forward, so a fetch a week later adds bars and changes every file's hash. It happened here on 2026-08-30, when a fetch took the sample from 51,147 bars to 51,200 and `verify` flagged all eleven files. **The published figures stay pinned to the 2026-08-26 snapshot**, which is what the committed manifest describes.
-2. **The venue revised a bar.** Rarer, and worth looking at rather than accepting.
-3. **A file was edited.** Editing one digit of one price leaves the file exactly as long and changes every number computed from it.
+This guide said all of that in prose for a fortnight while the command itself printed `CHANGED ... no longer reproducible` for the same event. A warning that appears on every routine fetch is one nobody reads, which is the whole reason the two cases were separated ([ADR-002 sec. 7](../adr/ADR-002-data-source-and-symbol-set.md)).
+
+**`verify` says `REVISED` or `MISSING`** - this one matters. The bytes the manifest recorded are no longer on disk, so a published number cannot be reproduced from this data. Two causes:
+
+1. **The venue restated a bar.** Rare, and worth looking at rather than accepting. Note that a revision can arrive *inside* a file that also grew - which is why the check re-hashes the prefix instead of trusting that longer means append-only.
+2. **A file was edited.** Editing one digit of one price leaves the file exactly as long and changes every number computed from it.
 
 **Do not update the manifest to match**, which records the discrepancy as the truth. To reproduce a published figure, restore the snapshot the manifest describes. To move the project forward onto newer data, regenerate the numbers *and* the manifest together, in one commit - never the manifest alone.
 

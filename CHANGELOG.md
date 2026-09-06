@@ -25,6 +25,20 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-06 - `verify` tells a fetch apart from a rewrite
+
+### Changed
+
+- **A file that grew and a file that was rewritten are no longer the same finding.** Both make a whole-file hash disagree, and only one is serious. The series extends forward in time, so every operator who fetches after the manifest was cut has longer files than it records - and the command answered that with `CHANGED ... any result computed from this data is no longer reproducible from it`, which was false for the common case and true for the rare one, printed identically for both.
+- **`verify` now re-hashes the recorded prefix** - truncating each file to the row count the manifest entry recorded - and reports **EXTENDED** when it matches, exiting 0. The promise a manifest makes is that a published number traces to bytes; when the recorded bytes are still there at the front of the file, that promise is intact. **REVISED** and **MISSING** keep exit 1 and the original language.
+- **The row count is what makes this decidable.** A manifest holding only a hash could not tell an append from a rewrite - a reason to record more than the minimum, noted in [ADR-002 sec. 7](docs/adr/ADR-002-data-source-and-symbol-set.md).
+
+### Why it mattered
+
+A warning that fires on every routine action trains the operator to clear it without reading, and the way you clear this one is by re-cutting the manifest - which is exactly how a genuine revision gets absorbed with nobody noticing. **The RUNBOOK had explained all of this in prose for a fortnight** while the command kept printing the alarming version; the knowledge existed and the tool did not have it.
+
+Checked against the real case: the working data was two days ahead of the committed snapshot across all eleven files, and all eleven verified as extensions, prefix hash for prefix hash. Pinned in both directions by `tests/unit/test_manifest.py`, including a file that grew *and* restated its past, and one that was truncated.
+
 ## 2026-09-05 - One dataset by default, and the swap declared rather than assumed
 
 ### Changed

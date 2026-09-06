@@ -86,6 +86,14 @@ The deeper reason it belonged elsewhere: whether a grid property is harmful depe
 
 *Why:* a manifest that lives inside an ignored directory ties no published result to any data. And a test that reads `data/` would skip itself in a clean clone and in CI - a gate that skips is decoration, not a guarantee. The tests stay hermetic on a synthetic fixture; provenance is a command the operator runs.
 
+**A file that grew and a file that was rewritten are reported apart** (2026-09-06). Both make a whole-file hash disagree, and only one is serious. The series extends forward in time, so *every* operator who fetches after the manifest was cut has longer files than it records - and for a fortnight the command answered that with `CHANGED ... any result computed from this data is no longer reproducible from it`. That sentence was false for the common case and true for the rare one, printed identically for both.
+
+The cost of collapsing them is not a cosmetic one. **A warning that fires on every routine action trains the operator to clear it without reading**, and the way you clear this one is by re-cutting the manifest - which is precisely how a genuine revision gets absorbed with nobody noticing. The alarm being too loud is what would eventually make it useless.
+
+So `verify` truncates each file to the row count the entry recorded, re-hashes that prefix, and reports **EXTENDED** when it matches - exiting 0, because the promise the manifest makes is that a published number traces to bytes, and that promise is intact. **REVISED** and **MISSING** keep exit 1 and the original language. The row count is what makes this decidable at all; a manifest holding only a hash could not tell the two apart, which is a reason to record more than the minimum.
+
+*Checked on the real case:* the working data was two days ahead of the committed snapshot across all eleven files, and all eleven verified as extensions - the recorded prefix hashed identically for every one. That is the evidence the distinction is doing real work rather than excusing drift, and it is the check `tests/unit/test_manifest.py` pins in both directions, including a file that grew *and* rewrote its past.
+
 ### 8. The canonical dataset is what every analysis command reads by default
 
 Two commands are exempt and both for the same reason - the prior project's exports are their

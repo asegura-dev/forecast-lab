@@ -151,21 +151,69 @@ def test_a_same_size_edit_is_caught(tmp_path: Path) -> None:
     report = manifest.verify(root, [entry])
 
     assert not report.is_clean
-    assert report.changed[0][0] == "XAUUSD_1H.csv"
-    assert "different content" in report.changed[0][1]
+    assert report.revised[0][0] == "XAUUSD_1H.csv"
+    assert "different content" in report.revised[0][1]
 
 
 @pytest.mark.unit
-def test_a_resized_file_is_caught(tmp_path: Path) -> None:
-    root = tmp_path / "data"
-    path = _series(root)
-    entry = manifest.entry_for(path, root, _meta(), source="reference")
+def test_appending_bars_is_an_extension_not_a_revision(tmp_path: Path) -> None:
+    """The case that made this distinction necessary.
 
-    path.write_text("a,b,c\n1,2,3\n4,5,6\n", encoding="utf-8")
+    The series extends forward in time, so anyone who runs `fetch` after the manifest was
+    cut has longer files than it records. Reported as "changed - no longer reproducible",
+    that message arrives for every operator on every fetch, and a warning everyone sees
+    every time is one nobody reads. Nothing published is invalidated: the recorded bytes
+    are still there, at the front of the file.
+    """
+    root = tmp_path / "data"
+    path = _series(root, body="a,b,c\n1,2,3\n")
+    entry = manifest.entry_for(path, root, _meta(rows=1), source="dukascopy")
+
+    path.write_text("a,b,c\n1,2,3\n4,5,6\n", encoding="utf-8")  # two more bars arrived
     report = manifest.verify(root, [entry])
 
     assert not report.is_clean
-    assert "size" in report.changed[0][1]
+    assert report.is_only_extended
+    assert report.revised == ()
+    assert report.extended[0][0] == "XAUUSD_1H.csv"
+    assert "appended" in report.extended[0][1]
+
+
+@pytest.mark.unit
+def test_a_file_that_grew_but_rewrote_its_past_is_revised(tmp_path: Path) -> None:
+    """The one the distinction must not let through.
+
+    A venue that appends two days and a venue that appends two days *and quietly restates
+    a bar from last March* both produce a longer file. Only the second means a published
+    number came from bytes that no longer exist anywhere, and length alone cannot tell
+    them apart - which is why the check re-hashes the recorded prefix instead of trusting
+    that bigger means append-only.
+    """
+    root = tmp_path / "data"
+    path = _series(root, body="a,b,c\n1,2,3\n")
+    entry = manifest.entry_for(path, root, _meta(rows=1), source="dukascopy")
+
+    path.write_text("a,b,c\n1,2,9\n4,5,6\n", encoding="utf-8")  # longer, and the past moved
+    report = manifest.verify(root, [entry])
+
+    assert not report.is_clean
+    assert not report.is_only_extended
+    assert report.extended == ()
+    assert report.revised[0][0] == "XAUUSD_1H.csv"
+
+
+@pytest.mark.unit
+def test_a_truncated_file_is_never_an_extension(tmp_path: Path) -> None:
+    """Shorter is not longer, and a download that stopped early must not read as benign."""
+    root = tmp_path / "data"
+    path = _series(root, body="a,b,c\n1,2,3\n4,5,6\n")
+    entry = manifest.entry_for(path, root, _meta(rows=2), source="dukascopy")
+
+    path.write_text("a,b,c\n1,2,3\n", encoding="utf-8")
+    report = manifest.verify(root, [entry])
+
+    assert report.extended == ()
+    assert report.revised[0][0] == "XAUUSD_1H.csv"
 
 
 @pytest.mark.unit
@@ -208,6 +256,6 @@ def test_every_problem_is_reported_not_just_the_first(tmp_path: Path) -> None:
     (root / "b.csv").unlink()
 
     report = manifest.verify(root, entries)
-    assert len(report.changed) == 1
+    assert len(report.revised) == 1
     assert len(report.missing) == 1
     assert report.ok == ("c.csv",)

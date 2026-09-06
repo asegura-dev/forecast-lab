@@ -123,29 +123,74 @@ def read(source: Path) -> list[Entry]:
     return [Entry.from_json(e) for e in raw["entries"]]
 
 
+def extends(path: Path, entry: Entry) -> bool:
+    """Whether ``path`` is ``entry``'s file with more rows appended and nothing rewritten.
+
+    A venue that appends two days of bars and a venue that silently revises a bar from
+    last March produce the same verdict from a whole-file hash: *changed*. They are not the
+    same event. The first invalidates nothing already published - every result computed
+    from the recorded snapshot is still computable from the prefix of this file. The second
+    means a number in a document was derived from bytes that no longer exist anywhere.
+
+    Reporting both as "no longer reproducible" is true and useless, because it trains an
+    operator to re-cut the manifest on sight - and re-cutting on sight is exactly how the
+    second case gets absorbed without anyone noticing.
+
+    So: truncate to the row count the entry recorded, re-hash, and compare. A match proves
+    append-only for those bytes. The row count is what makes this checkable at all; a
+    manifest holding only a hash could not tell the two apart.
+    """
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return False
+
+    lines = raw.split(b"\n")
+    if len(lines) < entry.rows + 1:  # header plus the recorded rows
+        return False
+
+    prefix = b"\n".join(lines[: entry.rows + 1]) + b"\n"
+    return hashlib.sha256(prefix).hexdigest() == entry.sha256
+
+
 @dataclass(frozen=True)
 class VerifyReport:
     """What `verify` found. Every discrepancy is reported, not just the first."""
 
     ok: tuple[str, ...]
-    changed: tuple[tuple[str, str], ...]  # (path, what differs)
+    #: Files whose recorded prefix is intact and which have grown: (path, how much).
+    extended: tuple[tuple[str, str], ...]
+    #: Files whose recorded bytes are no longer on disk. This is the serious one.
+    revised: tuple[tuple[str, str], ...]
     missing: tuple[str, ...]
     untracked: tuple[str, ...]
 
     @property
     def is_clean(self) -> bool:
-        return not (self.changed or self.missing)
+        return not (self.extended or self.revised or self.missing)
+
+    @property
+    def is_only_extended(self) -> bool:
+        """Nothing published is invalidated - but the manifest no longer describes the data."""
+        return bool(self.extended) and not (self.revised or self.missing)
 
 
 def verify(root: Path, entries: list[Entry]) -> VerifyReport:
     """Re-hash what is on disk and compare it against the manifest.
 
     Untracked files are reported but do not fail the check: a data directory may hold
-    something legitimately new. A file that *changed* or *vanished* does fail, because
+    something legitimately new. A file that *vanished* or was *revised* does fail, because
     either one silently invalidates every result computed from it.
+
+    A file that merely **grew** is reported apart from one that was rewritten. Both mean the
+    manifest no longer describes the data, and only one means a published number came from
+    bytes that no longer exist. Collapsing them - which this did until 2026-09-06 - makes
+    the alarming message routine, and a routine alarm is how the serious case gets waved
+    through.
     """
     ok: list[str] = []
-    changed: list[tuple[str, str]] = []
+    extended: list[tuple[str, str]] = []
+    revised: list[tuple[str, str]] = []
     missing: list[str] = []
 
     recorded = {e.path for e in entries}
@@ -155,14 +200,18 @@ def verify(root: Path, entries: list[Entry]) -> VerifyReport:
             missing.append(entry.path)
             continue
         size = path.stat().st_size
-        if size != entry.size_bytes:
-            changed.append((entry.path, f"size {size} != {entry.size_bytes} recorded"))
+        if size == entry.size_bytes and sha256_of(path) == entry.sha256:
+            ok.append(entry.path)
             continue
-        digest = sha256_of(path)
-        if digest != entry.sha256:
-            changed.append((entry.path, "same size, different content"))
+        if size > entry.size_bytes and extends(path, entry):
+            extended.append((entry.path, f"+{size - entry.size_bytes:,} bytes appended"))
             continue
-        ok.append(entry.path)
+        detail = (
+            f"size {size} != {entry.size_bytes} recorded"
+            if size != entry.size_bytes
+            else "same size, different content"
+        )
+        revised.append((entry.path, detail))
 
     untracked = sorted(
         p.relative_to(root).as_posix()
@@ -170,5 +219,9 @@ def verify(root: Path, entries: list[Entry]) -> VerifyReport:
         if p.is_file() and p.relative_to(root).as_posix() not in recorded
     )
     return VerifyReport(
-        ok=tuple(ok), changed=tuple(changed), missing=tuple(missing), untracked=tuple(untracked)
+        ok=tuple(ok),
+        extended=tuple(extended),
+        revised=tuple(revised),
+        missing=tuple(missing),
+        untracked=tuple(untracked),
     )

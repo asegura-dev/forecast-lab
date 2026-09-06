@@ -2449,10 +2449,12 @@ def verify_command(
 
     report = manifest.verify(root, entries)
 
-    for path, reason in report.changed:
-        console.print(f"[red]CHANGED[/red] {path}: {reason}")
+    for path, reason in report.revised:
+        console.print(f"[red]REVISED[/red] {path}: {reason}")
     for path in report.missing:
         console.print(f"[red]MISSING[/red] {path}")
+    for path, reason in report.extended:
+        console.print(f"[yellow]EXTENDED[/yellow] {path}: {reason}")
     if report.untracked:
         console.print(f"[yellow]{len(report.untracked)} untracked file(s) under {root}.[/yellow]")
 
@@ -2460,9 +2462,27 @@ def verify_command(
         console.print(f"[green]OK[/green] {len(report.ok)} file(s) match the manifest.")
         return
 
+    if report.is_only_extended:
+        # Exit 0, and the reason is the whole point of separating the two cases. The series
+        # extends forward in time, so *anyone* who runs `fetch` after the manifest was cut
+        # has files longer than it records - which under the old wording read "no longer
+        # reproducible" and was neither true nor useful. What the manifest promises is that
+        # a published number traces to bytes, and that promise is intact: the recorded
+        # snapshot sits unchanged inside these files, proved by re-hashing the prefix.
+        console.print(
+            f"[green]OK[/green] {len(report.ok)} file(s) match; "
+            f"[yellow]{len(report.extended)} have grown[/yellow] since the manifest was cut. "
+            "The recorded bytes are intact inside them - re-hashed prefix by prefix - so "
+            "every published result is still reproducible from the snapshot it names.\n"
+            "[dim]Anything you compute now uses more data than the manifest describes. "
+            "Pass --dir or re-cut deliberately if that matters.[/dim]"
+        )
+        return
+
     console.print(
-        f"[red]{len(report.changed)} changed, {len(report.missing)} missing.[/red] "
-        "Any result computed from this data is no longer reproducible from it."
+        f"[red]{len(report.revised)} revised, {len(report.missing)} missing.[/red] "
+        "These are not extensions: bytes the manifest recorded are no longer on disk, so "
+        "any result computed from them cannot be reproduced from this data."
     )
     raise typer.Exit(code=1)
 
