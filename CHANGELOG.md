@@ -25,6 +25,20 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-09 - CI, and three tests that only passed on one machine
+
+### Added
+
+- **`.github/workflows/gates.yml`** - the three gates run where anyone can watch them. The claim was previously unfalsifiable from outside: a README saying `mypy --strict` passes over 66 files is a sentence, and a reader cannot tell it from a sentence that used to be true. Ubuntu deliberately, and not a matrix: development happens on Windows, so a Linux run is the complement rather than a duplicate, and a Windows runner could not reproduce the one thing that actually breaks there - Smart App Control, which GitHub's runners do not enable.
+- **Issue and PR templates.** One is for a published figure that looks wrong, and it asks for `reproduce` and `verify` output first, because those answer most of the question before a human reads it. It also says out loud that "this number cannot exist" is a valid report - that is how the largest defect in this project's history was found.
+- **No `dependabot.yml`, on purpose.** `ta`, `lightgbm` and `xgboost` are pinned to exact versions for measured reasons - indicator values change between `ta` releases, and two of the four estimator versions are blocked by application control. An automated bump would walk past all of that and move every published number without touching a line of ours.
+
+### Fixed
+
+- **Three dashboard tests passed here and failed in a clean clone.** They drove the sidebar, which builds its options by globbing `data/` - a directory deliberately not committed - so they were asking a question only a machine that had already fetched could answer. **CI would have gone red on its first run.** Found by cloning the repository into a temporary directory and running the gates against it, before pushing the workflow rather than after.
+- **`FORECAST_LAB_ROOT` lets the dashboard read a synthetic tree**, which is what those tests now do. The committed payloads are copied into it rather than invented, because what the verdict test asserts is that the *published* figures reach the page; a fabricated payload would let it pass while the real record was unreachable.
+- **A skip became an assertion.** One test skipped itself when only one dataset was on disk. The fixture now guarantees two, so a skip could only mean the fixture had broken - and it would have hidden that rather than reported it.
+
 ## 2026-09-09 - `reproduce`, and a guide that runs the whole thing
 
 ### Added

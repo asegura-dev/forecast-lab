@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: What this project found, and what it does not establish
+    url: https://github.com/asegura-dev/forecast-lab/blob/main/FINDINGS.md
+    about: The verdict in one place, including the four things it deliberately does not claim.
+  - name: How the whole apparatus works
+    url: https://github.com/asegura-dev/forecast-lab/blob/main/docs/book/00-preface.md
+    about: Six chapters. Every formula cites the module implementing it.

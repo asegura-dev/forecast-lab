@@ -1,0 +1,66 @@
+# The three gates this project claims are green, run where anyone can watch them.
+#
+# The claim was previously unfalsifiable from outside: a README saying `mypy --strict` passes
+# over 66 files is a sentence, and a reader has no way to tell it from a sentence that used to
+# be true. This makes it checkable, which is the same argument the repository makes about its
+# own figures.
+#
+# **Ubuntu, deliberately, and not as a matrix.** Development happens on Windows, so a Linux
+# run is the complement rather than a duplicate: it catches what the author's machine never
+# would, and the reverse is covered by the machine the work is done on. A Windows runner would
+# double the time to re-test the platform already tested, and it could not reproduce the one
+# thing that actually breaks on Windows - Smart App Control blocking unsigned binaries, which
+# GitHub's runners do not enable.
+#
+# There is no `data/` here and none is fetched. Every gate is hermetic on synthetic fixtures
+# by design (ADR-002 sec. 7): provenance is a command an operator runs, not a test, because a
+# test that reads `data/` would skip itself in a clean clone and report green while
+# guaranteeing nothing.
+
+name: gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gates-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Sync the locked environment
+        # `--extra dashboard` on purpose. The dashboard tests guard themselves with
+        # `pytest.importorskip`, so without it they would skip and CI would report green over
+        # a dozen tests it never ran.
+        run: uv sync --extra dashboard --frozen
+
+      # Three steps rather than one, so a red badge says which gate fell.
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Types
+        run: uv run python -m mypy --strict src tests
+
+      - name: Tests
+        # `network` and `slow` are deselected by `addopts` in pyproject.toml: one hits
+        # Dukascopy's CDN and the other fits models to render a dashboard page. Both are
+        # opt-in locally and neither belongs in a gate that must be deterministic.
+        run: uv run python -m pytest -q

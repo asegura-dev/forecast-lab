@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -55,8 +56,15 @@ from forecast_lab.interfaces.presentation import (
 from forecast_lab.interfaces.published import Published, available_for, find
 from forecast_lab.interfaces.runner import Invocation, RunnerError, run
 
-#: Repository root, four levels up from this file.
-ROOT = Path(__file__).resolve().parents[3]
+#: Repository root, four levels up from this file - or wherever `FORECAST_LAB_ROOT` points.
+#:
+#: The override exists for the gates. Three tests here drove the sidebar, which builds its
+#: options by globbing `data/`, so they passed on a developer's machine and failed in a clean
+#: clone where `data/` does not exist - the directory is deliberately not committed. That is
+#: the shape of defect this project keeps finding: nothing was inconsistent, the tests were
+#: simply asking a question only one machine could answer, and CI would have gone red on its
+#: first run. Pointed at a synthetic tree they check the same behaviour and need no download.
+ROOT = Path(os.environ.get("FORECAST_LAB_ROOT") or Path(__file__).resolve().parents[3])
 MANIFEST = ROOT / "docs" / "status" / "data-manifest.json"
 FIGURES = ROOT / "docs" / "status" / "figures"
 DATA_ROOTS = ("data/raw", "data/reference")

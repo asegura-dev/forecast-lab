@@ -7,8 +7,13 @@ panels that fetched a result and discarded it, a headline typed into the source 
 next page contradicted, and sidebar state that vanished on the way to another page.
 
 **Streamlit is an optional extra**, so these skip when it is absent rather than making the
-default install heavier. The gates run `uv sync` without the extra; a machine that has it
-gets these too.
+default install heavier. CI installs it deliberately (`uv sync --extra dashboard`): without
+it these would skip and the run would report green over a dozen tests it never executed.
+
+**They read a synthetic tree, not `data/`.** Three of them drove the sidebar, which builds
+its options by globbing the data directory - so they passed on a machine that had fetched and
+failed in a clean clone, where `data/` deliberately does not exist. A clean-clone run found
+that before CI did; `FORECAST_LAB_ROOT` is what lets them point somewhere hermetic.
 
 **Three of them are marked `slow`** and excluded from the default run: they spawn the
 analysis commands, which fit models, and one takes four minutes. Opt in with
@@ -41,6 +46,44 @@ DOCUMENT_PAGES = ("Findings", "Reasoning")
 
 def _app(timeout: int = 120) -> AppTest:
     return AppTest.from_file(str(APP), default_timeout=timeout)
+
+
+REPOSITORY = Path(__file__).resolve().parents[2]
+
+#: Enough of a series file for the sidebar to offer a symbol and an interval. The dashboard
+#: reads only the *names* to build those options, so the bars need not be plausible - and
+#: making them plausible would invite a later test to compute something from them, which is
+#: how a fixture stops being a fixture.
+_BARS = "time,open,high,low,close,volume,spread\n1514847600,1,1,1,1,1,0.1\n"
+
+
+@pytest.fixture
+def synthetic_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A tree the dashboard can read without a download.
+
+    Pins a defect a clean clone found and no machine with `data/` on it could: three tests
+    drove the sidebar, which builds its options by globbing `data/`, so they passed here and
+    failed on a fresh checkout - where that directory does not exist, deliberately. CI would
+    have gone red on its first run.
+
+    The committed payloads are copied rather than invented, because what the verdict test
+    asserts is that **the published figures** reach the page. A fabricated payload would let
+    the test pass while the real record was unreachable.
+    """
+    # Both datasets, because one of these tests changes the Dataset control and would
+    # otherwise skip itself for want of a second option - and a test that skips is
+    # decoration, which is this repository's own argument against a provenance *test*.
+    for dataset in ("raw", "reference"):
+        directory = tmp_path / "data" / dataset
+        directory.mkdir(parents=True)
+        (directory / "XAUUSD_1H.csv").write_text(_BARS, encoding="utf-8")
+    status = tmp_path / "docs" / "status"
+    status.mkdir(parents=True)
+    for payload in (REPOSITORY / "docs" / "status").glob("*.json"):
+        (status / payload.name).write_bytes(payload.read_bytes())
+
+    monkeypatch.setenv("FORECAST_LAB_ROOT", str(tmp_path))
+    return tmp_path
 
 
 # --- the page renders at all --------------------------------------------------------------
@@ -112,7 +155,7 @@ def test_the_reasoning_page_renders_one_document_rather_than_every_document() ->
 
 
 @pytest.mark.unit
-def test_the_sidebar_choices_survive_a_visit_to_another_page() -> None:
+def test_the_sidebar_choices_survive_a_visit_to_another_page(synthetic_root: Path) -> None:
     """Pins the defect that made a page compute against a dataset the reader did not pick.
 
     The widgets were unkeyed, and `main()` returns before creating them on the document
@@ -121,8 +164,10 @@ def test_the_sidebar_choices_survive_a_visit_to_another_page() -> None:
     """
     app = _app().run()
     app.sidebar.radio[0].set_value("Exploration").run()
-    if len(app.sidebar.selectbox[0].options) < 2:
-        pytest.skip("only one dataset on this machine")
+    # Asserted, not skipped. This used to skip when only one dataset was on disk, which the
+    # fixture now guarantees is never true - so a skip here could only mean the fixture had
+    # stopped working, and would hide that rather than report it.
+    assert len(app.sidebar.selectbox[0].options) >= 2, "the fixture should offer two datasets"
 
     chosen = app.sidebar.selectbox[0].options[1]
     app.sidebar.selectbox[0].set_value(chosen).run()
@@ -133,7 +178,9 @@ def test_the_sidebar_choices_survive_a_visit_to_another_page() -> None:
 
 
 @pytest.mark.unit
-def test_the_mode_control_appears_only_where_the_command_takes_it() -> None:
+def test_the_mode_control_appears_only_where_the_command_takes_it(
+    synthetic_root: Path,
+) -> None:
     """`align` and `explore` have no `--mode`; a control that visibly does nothing costs
     trust, and a reader who changes it and sees the same command line loses it."""
     from forecast_lab.interfaces.dashboard import TAKES_MODE
@@ -248,7 +295,9 @@ def test_the_verdict_page_draws_the_finding_rather_than_only_tabulating_it() -> 
 
 
 @pytest.mark.unit
-def test_the_verdict_page_serves_the_published_result_instantly() -> None:
+def test_the_verdict_page_serves_the_published_result_instantly(
+    synthetic_root: Path,
+) -> None:
     """The worst problem this page had: it re-ran everything.
 
     Nine payloads sit committed under `docs/status/` - the ones FINDINGS and the STATUS
