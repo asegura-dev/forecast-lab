@@ -17,10 +17,10 @@ is found without touching this file - and a sidecar that does not match is not o
 which is the behaviour that matters: a published figure for gold must never be served to
 someone asking about the S&P.
 
-**What a command produced is inferred from the payload's shape**, because the payloads do
-not name their command. The keys below are the ones each builder emits and no other does;
-they are asserted against real payloads by a test, so a renamed key fails there rather than
-mislabelling a panel.
+**Each payload names the command that produced it**, so nothing here has to infer it. That
+was not always true: this module used to carry a table of key sets, one per builder, and a
+test to keep the table honest. `reproduce` needed the actual command line anyway - a key set
+cannot be re-run - so recording it made the table redundant rather than merely convenient.
 
 No Streamlit, no subprocess, and nothing imported from this package - the same rule
 `runner` and `presentation` follow, enforced across the whole `interfaces` package.
@@ -37,17 +37,8 @@ from typing import Any
 #: Where committed payloads live, relative to the repository root.
 SIDECAR_DIRECTORY = Path("docs") / "status"
 
-#: Keys that identify which command wrote a payload. Each set is unique to one builder.
-#: `verdict` and `validate` both carry `power`-adjacent sections, so the discriminator is
-#: the section only one of them has.
-SIGNATURES: dict[str, frozenset[str]] = {
-    "verdict": frozenset({"skill", "profit", "multiplicity"}),
-    "validate": frozenset({"models", "power", "dependence"}),
-    "train": frozenset({"scores", "selected_on_validation"}),
-    "features": frozenset({"policy_passes", "features"}),
-    "explore": frozenset({"correlations", "by_year", "moves"}),
-    "baseline": frozenset({"blocks", "labels", "purged"}),
-}
+#: Where a payload records the command that produced it. Written by `cli._emit`.
+PROVENANCE_KEY = "run"
 
 
 class PublishedError(RuntimeError):
@@ -90,12 +81,22 @@ class Published:
 
 
 def command_of(payload: Mapping[str, Any]) -> str | None:
-    """Which command wrote this payload, from the sections only that command emits."""
-    keys = set(payload)
-    for command, signature in SIGNATURES.items():
-        if signature <= keys:
-            return command
-    return None
+    """Which command wrote this payload, as the payload itself records.
+
+    This used to infer the answer from the sections only one builder emits - a table of key
+    sets kept by hand, with a test asserting it still matched the real files. It worked, and
+    it was a second description of something the payloads could simply say. Since every
+    committed payload carries the command line that produced it (`cli._emit`), the table had
+    become a thing to keep in sync for no gain, which is how a codebase accumulates.
+
+    A payload without the record returns `None` rather than being guessed at: an unlabelled
+    figure is exactly what this module refuses to serve.
+    """
+    run = payload.get(PROVENANCE_KEY)
+    if not isinstance(run, Mapping):
+        return None
+    command = run.get("command")
+    return str(command) if isinstance(command, str) else None
 
 
 def catalogue(root: Path) -> list[Published]:

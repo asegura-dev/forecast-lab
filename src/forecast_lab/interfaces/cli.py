@@ -17,6 +17,7 @@ in the logging is indistinguishable from a crash in the work.
 from __future__ import annotations
 
 import importlib.util
+import json
 import math
 import subprocess
 import sys
@@ -137,6 +138,20 @@ DEFAULT_REFERENCE_DIR = DATA_ROOT / "reference"
 #: Committed, unlike the data it describes: it is what ties a published number to the
 #: bytes behind it (ADR-002 sec. 7).
 DEFAULT_MANIFEST = Path("docs/status/data-manifest.json")
+
+#: Where the committed payloads live - the ones every document quotes.
+SIDECAR_DIRECTORY = Path("docs/status")
+
+#: The block describing *when and how* a payload was made rather than what it found.
+#: A comparison excludes it by construction: `generated_at` is a clock reading, so two
+#: correct runs of the same command differ in it, and flagging that would be noise of
+#: exactly the kind ADR-002 sec. 7 is about.
+PROVENANCE_KEY = "run"
+
+#: Everything that records *when* rather than *what*. `generated_at` sits at the top level of
+#: two payloads for historical reasons and is provenance wherever it sits; excluding it is not
+#: a convenience but the correct semantics, since two correct runs of one command differ in it.
+PROVENANCE_FIELDS = frozenset({PROVENANCE_KEY, "generated_at"})
 #: Figures are committed - they are derived statistics rather than vendor data, and a
 #: research log whose charts only exist on the author's machine is not a research log.
 DEFAULT_FIGURES = Path("docs/status/figures")
@@ -363,7 +378,7 @@ def align_command(
         raise typer.Exit(code=1) from None
 
     if as_json:
-        console.print_json(data=_align_payload(panel, interval, max_staleness))
+        _emit("align", _align_payload(panel, interval, max_staleness))
         return
 
     console.print(
@@ -450,7 +465,7 @@ def features_command(
         raise typer.Exit(code=1) from None
 
     if as_json:
-        console.print_json(data=_features_payload(matrix, policy))
+        _emit("features", _features_payload(matrix, policy))
         return
 
     console.print(
@@ -618,8 +633,9 @@ def explore_command(
         raise typer.Exit(code=1) from None
 
     if as_json:
-        console.print_json(
-            data=_explore_payload(
+        _emit(
+            "explore",
+            _explore_payload(
                 spec.name, interval, price, moves, price_normality,
                 return_normality, yearly, correlations,
             )
@@ -936,8 +952,9 @@ def train_command(
     )
 
     if as_json:
-        console.print_json(
-            data=_train_payload(
+        _emit(
+            "train",
+            _train_payload(
                 spec.name, interval, horizon, selected, matrix, label_report,
                 split, block_baseline, scores, chosen, on_test, models,
             )
@@ -1171,8 +1188,9 @@ def validate_command(
     )
 
     if as_json:
-        console.print_json(
-            data=_validate_payload(
+        _emit(
+            "validate",
+            _validate_payload(
                 spec.name, interval, horizon, selected, scheme, pooled, plan,
                 single, thresholds, threshold_source, dependence, contrast,
                 label_persistence,
@@ -1414,6 +1432,37 @@ def _validate_payload(
     }
 
 
+def _emit(command: str, payload: dict[str, Any]) -> None:
+    """Print a `--json` payload with a record of the command line that produced it.
+
+    Every committed sidecar under `docs/status/` is quoted by a document, and until now
+    none of them said how it was made. Reproducing `model-comparison.json` required knowing
+    it came from `--dir data/reference`, which was written down nowhere - so the only way to
+    check a published figure still followed from the data was to reconstruct the invocation
+    by reading a STATUS log and hoping.
+
+    What goes in the record is **what the operator actually typed**, not a reconstruction
+    from parameters. A reconstruction is a second implementation of the argument parser, and
+    it drifts: it would have kept saying `--dir data/reference` for three commands after
+    their default changed. `sys.argv` cannot be wrong about what was run.
+
+    The block is kept under one key so a comparison can exclude exactly it. `generated_at`
+    is a clock reading and would make every payload differ from every other run of the same
+    command - which is why `reproduce` compares results and ignores provenance, rather than
+    hashing whole files.
+    """
+    console.print_json(
+        data={
+            **payload,
+            "run": {
+                "command": command,
+                "argv": sys.argv[1:],
+                "generated_at": datetime.now(UTC).isoformat(),
+            },
+        }
+    )
+
+
 def _align_payload(
     panel: Any, interval: Timeframe, max_staleness: int
 ) -> dict[str, Any]:
@@ -1578,8 +1627,9 @@ def verdict_command(
         raise typer.Exit(code=1) from None
 
     if as_json:
-        console.print_json(
-            data=_verdict_payload(
+        _emit(
+            "verdict",
+            _verdict_payload(
                 spec.name, interval, horizon, selected, scheme, battery, cost, cost_source,
                 long_only,
             )
@@ -2212,8 +2262,10 @@ def baseline_command(
         raise typer.Exit(code=1) from None
 
     if as_json:
-        payload = _baseline_payload(spec.name, interval, horizon, report, split, blocks)
-        console.print_json(data=payload)
+        _emit(
+            "baseline",
+            _baseline_payload(spec.name, interval, horizon, report, split, blocks),
+        )
         return
 
     console.print(
@@ -2375,6 +2427,156 @@ def ingest_command(
     if report.rejected:
         console.print(f"[yellow]{len(report.rejected)} file(s) rejected - see above.[/yellow]")
         raise typer.Exit(code=1)
+
+
+def _only_additions(was: Any, now: Any) -> bool:
+    """Whether ``now`` contains everything ``was`` did, unchanged, and possibly more.
+
+    The question a reader of a drift report actually has is not "did the payload change" but
+    **"did anything I already published move"**. A metric added to the score table changes the
+    payload and moves nothing; reporting the two the same way would train an operator to
+    re-cut the sidecars on sight, which is the failure ADR-002 sec. 7 records for `verify`.
+
+    Lists are compared position by position rather than as sets, because a payload's ordering
+    is part of what it says - the score table is sorted, and a reordering is a change.
+    """
+    if isinstance(was, dict) and isinstance(now, dict):
+        return all(key in now and _only_additions(value, now[key]) for key, value in was.items())
+    if isinstance(was, list) and isinstance(now, list):
+        return len(was) == len(now) and all(
+            _only_additions(before, after) for before, after in zip(was, now, strict=True)
+        )
+    return bool(was == now)
+
+
+def _drift(recorded: dict[str, Any], fresh: dict[str, Any]) -> str | None:
+    """What changed between a committed payload and a fresh run, or ``None`` if nothing.
+
+    Says *why* rather than only *that*, because the two cases mean different things and one
+    message covers both badly. More rows means the data extended and the result simply
+    describes more of it. The same rows with different numbers means the code changed what
+    it computes, which is the case worth stopping for.
+    """
+    was = {k: v for k, v in recorded.items() if k not in PROVENANCE_FIELDS}
+    now = {k: v for k, v in fresh.items() if k not in PROVENANCE_FIELDS}
+    if was == now:
+        return None
+
+    for field in ("rows", "scored_bars"):
+        before, after = was.get(field), now.get(field)
+        if isinstance(before, int) and isinstance(after, int) and before != after:
+            return (
+                f"{field} {before:,} -> {after:,}; the data extended, and every figure here "
+                "describes more of it than the committed one does"
+            )
+
+    if _only_additions(was, now):
+        return (
+            "every published figure is unchanged; the payload gained fields the committed "
+            "one predates"
+        )
+
+    changed = sorted(k for k in set(was) | set(now) if was.get(k) != now.get(k))
+    return f"same span, and a published figure moved, in: {', '.join(changed[:6])}"
+
+
+@app.command("reproduce")
+def reproduce_command(
+    sidecars: Annotated[
+        Path, typer.Option("--sidecars", help="Directory of committed payloads to re-run.")
+    ] = SIDECAR_DIRECTORY,
+    only: Annotated[
+        str | None, typer.Option("--only", help="Re-run just this command's payloads.")
+    ] = None,
+) -> None:
+    """Re-run every committed payload and report whether the results still follow.
+
+    The companion to `verify`, and the half that was missing. `verify` proves the *bytes* on
+    disk are the ones a published number was computed from; this proves the *number* still
+    comes out of them. A repository whose subject is reproducibility had a command for the
+    first and none for the second - so the only way to check a published figure was to
+    reconstruct its invocation by reading a STATUS log and hoping.
+
+    Each payload records the command line that produced it, so this re-runs what the
+    operator actually typed rather than a reconstruction from parameters - which would be a
+    second implementation of the argument parser, drifting quietly the way the dashboard's
+    hand-kept key list did. A sidecar with no such record is skipped and said so: it
+    predates the record and cannot be checked until it is regenerated.
+    """
+    payloads = sorted(sidecars.glob("*.json"))
+    if not payloads:
+        console.print(f"[red]No payloads under {sidecars}.[/red]")
+        raise typer.Exit(code=2)
+
+    identical: list[str] = []
+    drifted: list[tuple[str, str]] = []
+    skipped: list[str] = []
+    failed: list[tuple[str, str]] = []
+
+    for path in payloads:
+        try:
+            recorded = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            skipped.append(f"{path.name} (unreadable)")
+            continue
+        if not isinstance(recorded, dict) or PROVENANCE_KEY not in recorded:
+            skipped.append(f"{path.name} (no command recorded)")
+            continue
+
+        run = recorded[PROVENANCE_KEY]
+        command = str(run.get("command", "?"))
+        argv = [str(a) for a in run.get("argv") or []]
+        if only and command != only:
+            continue
+
+        console.print(f"[dim]{path.name}: forecast-lab {' '.join(argv)}[/dim]")
+        result = subprocess.run(
+            # The module form, for the same reason `runner` uses it: Windows Smart App
+            # Control blocks the unsigned console script, and a reinstall makes it new again.
+            [sys.executable, "-m", "forecast_lab.interfaces.cli", *argv],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+        if result.returncode != 0:
+            failed.append((path.name, f"exit {result.returncode}"))
+            continue
+        try:
+            fresh = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            failed.append((path.name, "the run produced no readable payload"))
+            continue
+
+        reason = _drift(recorded, fresh)
+        if reason is None:
+            identical.append(path.name)
+            console.print(f"  [green]IDENTICAL[/green] {path.name}")
+        else:
+            drifted.append((path.name, reason))
+            console.print(f"  [yellow]DRIFTED[/yellow] {path.name}: {reason}")
+
+    for name, why in failed:
+        console.print(f"  [red]FAILED[/red] {name}: {why}")
+    for name in skipped:
+        console.print(f"  [dim]skipped[/dim] {name}")
+
+    console.print("")
+    console.print(
+        f"[bold]{len(identical)} identical, {len(drifted)} drifted, "
+        f"{len(failed)} failed, {len(skipped)} skipped.[/bold]"
+    )
+    if failed:
+        raise typer.Exit(code=1)
+    if drifted:
+        # Not an error. Drift is the expected state whenever the data has moved on, and this
+        # says "look at this" rather than "something is broken" - the same distinction
+        # `verify` draws between a file that grew and one that was rewritten.
+        console.print(
+            "[dim]Drift is not a fault. It means the committed figures describe an earlier "
+            "snapshot than the data on disk, which is what pinning them is for.[/dim]"
+        )
 
 
 @app.command("dashboard")

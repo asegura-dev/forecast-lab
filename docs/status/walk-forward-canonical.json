@@ -3,7 +3,7 @@
   "timeframe": "1H",
   "horizon": 1,
   "mode": "focus",
-  "generated_at": "2026-08-28T21:37:51.901570+00:00",
+  "generated_at": "2026-09-09T19:21:56.961839+00:00",
   "scheme": {
     "folds": 5,
     "expanding": true,
@@ -369,5 +369,21 @@
       ],
       "skipped": []
     }
-  ]
+  ],
+  "run": {
+    "command": "validate",
+    "argv": [
+      "validate",
+      "--target",
+      "XAUUSD",
+      "--timeframe",
+      "1H",
+      "--mode",
+      "focus",
+      "--folds",
+      "5",
+      "--json"
+    ],
+    "generated_at": "2026-09-09T19:21:56.973064+00:00"
+  }
 }

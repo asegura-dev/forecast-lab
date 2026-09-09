@@ -584,3 +584,90 @@ def test_every_command_reads_the_dataset_this_list_says_it_does() -> None:
         "a command's default dataset changed. Every entry here is a claim the RUNBOOK and "
         "the committed sidecars depend on, so update both before updating this list."
     )
+
+
+# --- reproduce: do the published numbers still follow from the data? ---------------------------
+
+
+@pytest.mark.unit
+def test_a_payload_that_matches_shows_no_drift() -> None:
+    from forecast_lab.interfaces.cli import _drift
+
+    payload = {"rows": 10, "edge": 0.01, "run": {"command": "train", "argv": []}}
+    fresh = {"rows": 10, "edge": 0.01, "run": {"command": "train", "argv": ["x"]}}
+
+    assert _drift(payload, fresh) is None
+
+
+@pytest.mark.unit
+def test_provenance_never_counts_as_drift() -> None:
+    """Two correct runs of one command differ in their clocks and in nothing else.
+
+    `generated_at` sits at the top level of two payloads for historical reasons. Excluding it
+    is the correct semantics rather than a convenience: a check that fired on it would fire
+    on every run, and a check that always fires is one nobody reads.
+    """
+    from forecast_lab.interfaces.cli import _drift
+
+    payload = {"edge": 0.01, "generated_at": "2026-08-30T00:00:00+00:00", "run": {}}
+    fresh = {"edge": 0.01, "generated_at": "2026-09-09T00:00:00+00:00", "run": {}}
+
+    assert _drift(payload, fresh) is None
+
+
+@pytest.mark.unit
+def test_more_rows_is_reported_as_the_data_extending() -> None:
+    """The benign case, and the one that must not read like a broken result."""
+    from forecast_lab.interfaces.cli import _drift
+
+    reason = _drift({"rows": 50948, "edge": 0.01}, {"rows": 51000, "edge": 0.02})
+
+    assert reason is not None
+    assert "the data extended" in reason
+    assert "50,948" in reason and "51,000" in reason
+
+
+@pytest.mark.unit
+def test_a_new_field_is_reported_as_an_addition_not_a_moved_figure() -> None:
+    """The case that actually arrived: `f1` and `negative_predictive_value` were added to
+    the score table, so every committed payload differed while no published number had
+    moved. Reporting that as a changed result would teach an operator to re-cut on sight."""
+    from forecast_lab.interfaces.cli import _drift
+
+    reason = _drift(
+        {"rows": 10, "scores": [{"model": "RF", "accuracy": 0.51}]},
+        {"rows": 10, "scores": [{"model": "RF", "accuracy": 0.51, "f1": 0.55}]},
+    )
+
+    assert reason is not None
+    assert "unchanged" in reason and "gained fields" in reason
+
+
+@pytest.mark.unit
+def test_a_moved_figure_is_never_mistaken_for_an_addition() -> None:
+    """The one the distinction must not let through."""
+    from forecast_lab.interfaces.cli import _drift
+
+    reason = _drift(
+        {"rows": 10, "scores": [{"model": "RF", "accuracy": 0.51}]},
+        {"rows": 10, "scores": [{"model": "RF", "accuracy": 0.62, "f1": 0.55}]},
+    )
+
+    assert reason is not None
+    assert "a published figure moved" in reason
+
+
+@pytest.mark.unit
+def test_dropping_a_field_is_not_an_addition() -> None:
+    """A payload that stopped reporting something has changed what it says."""
+    from forecast_lab.interfaces.cli import _only_additions
+
+    assert not _only_additions({"a": 1, "b": 2}, {"a": 1})
+
+
+@pytest.mark.unit
+def test_reordering_a_list_is_not_an_addition() -> None:
+    """The score table is sorted, so its order is part of what the payload states."""
+    from forecast_lab.interfaces.cli import _only_additions
+
+    assert not _only_additions([{"m": "a"}, {"m": "b"}], [{"m": "b"}, {"m": "a"}])

@@ -3,7 +3,7 @@
   "timeframe": "1H",
   "horizon": 1,
   "mode": "focus",
-  "generated_at": "2026-09-04T15:39:02.631982+00:00",
+  "generated_at": "2026-09-09T19:23:44.039456+00:00",
   "folds": 5,
   "scored_bars": 40587,
   "configurations": 18,
@@ -260,5 +260,21 @@
       "deflated": 2.269536273658434e-10,
       "survives": false
     }
+  },
+  "run": {
+    "command": "verdict",
+    "argv": [
+      "verdict",
+      "--target",
+      "XAUUSD",
+      "--timeframe",
+      "1H",
+      "--mode",
+      "focus",
+      "--folds",
+      "5",
+      "--json"
+    ],
+    "generated_at": "2026-09-09T19:23:44.039456+00:00"
   }
 }

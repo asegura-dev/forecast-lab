@@ -25,6 +25,21 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-09 - `reproduce`, and a guide that runs the whole thing
+
+### Added
+
+- **`forecast-lab reproduce`** - the companion to `verify`, and the half that was missing. One proves the *bytes* on disk are the ones a published number was computed from; the other proves the *number* still comes out of them. A repository whose subject is reproducibility had a command for the first and none for the second.
+- **Every payload records the command line that produced it** (`sys.argv` verbatim, not a reconstruction from parameters - a reconstruction is a second argument parser and it drifts). Until now, checking a published figure meant reconstructing its invocation from a STATUS log: nothing said `model-comparison.json` came from `--dir data/reference`.
+- **[RUNBOOK sec. 0](docs/guides/RUNBOOK-getting-started.md)** - every command that matters, in order, in one copy-pasteable block. Fifteen minutes from a fresh clone to the verdict. Each line was run before it was written down.
+- **[ADR-014](docs/adr/ADR-014-reproducing-a-result-is-a-command.md)** records the decision and its limit: `reproduce` re-runs commands, so a defect that was present when a payload was committed reproduces perfectly. That is the limit of every reproducibility check.
+
+### Changed
+
+- **Drift is reported in three kinds, not one.** More rows means the data extended and the committed figure describes an earlier snapshot; added fields mean the code records more than it did and nothing published moved; the same span with a different answer is the one worth stopping for. Collapsing them would fire the check on every routine addition, and a check that fires on everything is one nobody reads - the same failure `verify` had until it learned to tell a fetch from a rewrite.
+- **All nine payloads regenerated** to carry the record. Verified before installing: five reproduced byte-identically, two differed only in `generated_at`, two differed only by `f1` and `negative_predictive_value`, added to the score table since. **No published figure moved**, and `reproduce` now reports 9 identical, 0 drifted.
+- **`interfaces/published.py` lost a mechanism.** It inferred which command wrote a payload from a hand-kept table of key sets, with a test to keep the table honest. `reproduce` needed the real command line anyway - a key set cannot be re-run - so recording it made the table redundant. Declared beats inferred, and one mechanism beats two.
+
 ## 2026-09-06 - `verify` tells a fetch apart from a rewrite
 
 ### Changed

@@ -184,5 +184,19 @@
       "kpss_pvalue": 0.09899786949637977,
       "n_finite": 5000
     }
-  ]
+  ],
+  "run": {
+    "command": "features",
+    "argv": [
+      "features",
+      "--target",
+      "XAUUSD",
+      "--timeframe",
+      "1H",
+      "--mode",
+      "focus",
+      "--json"
+    ],
+    "generated_at": "2026-09-09T19:20:37.215410+00:00"
+  }
 }

@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from forecast_lab.interfaces.published import (
-    SIGNATURES,
+    PROVENANCE_KEY,
     available_for,
     catalogue,
     command_of,
@@ -44,6 +44,7 @@ def repository(tmp_path: Path) -> Path:
             "symbol": "XAUUSD", "timeframe": "1H", "mode": "focus",
             "generated_at": "2026-08-30T00:00:00+00:00",
             "skill": {}, "profit": {}, "multiplicity": {},
+            "run": {"command": "verdict", "argv": ["verdict", "--json"]},
         },
     )
     _write(
@@ -52,6 +53,7 @@ def repository(tmp_path: Path) -> Path:
         {
             "target": "XAUUSD", "timeframe": "1H", "mode": "whole",
             "policy_passes": True, "features": [],
+            "run": {"command": "features", "argv": ["features", "--json"]},
         },
     )
     return tmp_path
@@ -114,11 +116,19 @@ def test_the_headline_payloads_are_findable_for_the_series_findings_quotes() -> 
 
 
 @pytest.mark.unit
-def test_no_two_commands_share_a_signature() -> None:
-    """An ambiguous discriminator would label a panel with the wrong command's name."""
-    for name, signature in SIGNATURES.items():
-        others = [s for other, s in SIGNATURES.items() if other != name]
-        assert not any(signature <= other for other in others), f"{name} is not distinctive"
+def test_every_committed_payload_records_the_command_that_made_it() -> None:
+    """Without this the panel cannot be labelled and `reproduce` cannot re-run it.
+
+    A sidecar that lands here without its command line is not a small omission: it is a
+    published figure nobody can check, which is the state this repository spent a fortnight
+    in without noticing.
+    """
+    for path in sorted((ROOT / "docs" / "status").glob("*.json")):
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or "version" in payload:
+            continue  # the data manifest is provenance for bytes, not a result
+        assert PROVENANCE_KEY in payload, f"{path.name} records no command"
+        assert payload[PROVENANCE_KEY].get("argv"), f"{path.name} records no argv"
 
 
 # --- the mechanics ---------------------------------------------------------------------------
@@ -139,7 +149,7 @@ def test_an_unreadable_file_does_not_break_the_catalogue(tmp_path: Path) -> None
     (tmp_path / "docs" / "status").mkdir(parents=True)
     (tmp_path / "docs" / "status" / "broken.json").write_text("{not json", encoding="utf-8")
     _write(tmp_path, "ok.json", {"symbol": "XAUUSD", "timeframe": "1H",
-                                 "skill": {}, "profit": {}, "multiplicity": {}})
+                                 "run": {"command": "verdict", "argv": []}})
 
     assert [entry.command for entry in catalogue(tmp_path)] == ["verdict"]
 
@@ -167,13 +177,13 @@ def test_the_provenance_says_it_is_committed_rather_than_fresh(repository: Path)
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("command", sorted(SIGNATURES))
-def test_each_signature_identifies_its_own_command(command: str) -> None:
-    payload: dict[str, object] = {key: {} for key in SIGNATURES[command]}
-
-    assert command_of(payload) == command
+def test_the_command_is_read_from_the_record() -> None:
+    assert command_of({"run": {"command": "verdict"}}) == "verdict"
 
 
 @pytest.mark.unit
-def test_a_payload_matching_nothing_is_unidentified() -> None:
+def test_a_payload_with_no_record_is_unidentified() -> None:
+    """`None`, never a guess. An unlabelled figure is what this module exists to refuse."""
     assert command_of({"something": 1}) is None
+    assert command_of({"run": {}}) is None
+    assert command_of({"run": "verdict"}) is None

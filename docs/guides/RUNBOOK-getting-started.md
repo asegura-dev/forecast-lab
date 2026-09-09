@@ -4,6 +4,43 @@ From a fresh clone to a feature matrix, with what every number on screen means a
 
 The order matters and is not arbitrary: **nothing downstream works until data exists on disk**, because `data/` is deliberately not committed.
 
+## 0. The whole thing, in one block
+
+If you want the finding rather than the tour, this is every command that matters, in order. Roughly **fifteen minutes**, most of it the last two lines.
+
+```bash
+uv sync                                                          # environment, from uv.lock
+uv run forecast-lab fetch                                        # public CDN, no API key
+uv run forecast-lab verify                                       # do the bytes match the manifest?
+uv run forecast-lab reproduce                                    # do the published numbers still follow?
+
+uv run forecast-lab align    --target XAUUSD --timeframe 1H      # one timeline, nothing fabricated
+uv run forecast-lab explore  --target XAUUSD --timeframe 1H      # what the data looks like
+uv run forecast-lab baseline --target XAUUSD --timeframe 1H      # what a model has to beat *
+uv run forecast-lab features --target XAUUSD --timeframe 1H --mode focus
+uv run forecast-lab train    --target XAUUSD --timeframe 1H --mode focus
+uv run forecast-lab validate --target XAUUSD --timeframe 1H --mode focus --folds 5
+uv run forecast-lab verdict  --target XAUUSD --timeframe 1H --mode focus --folds 5
+```
+
+Then read it rather than scroll it:
+
+```bash
+uv run forecast-lab dashboard                                    # localhost:8501
+```
+
+`*` **`baseline` is the one command in this list that reads a different dataset**, and on purpose: its subject is reproducing the original project's published baseline, which can only be done on the original's data. Everything else reads the canonical dataset `fetch` downloads. Pass `--dir data/raw` if you want its numbers on the same footing as the rest ([ADR-002 sec. 8](../adr/ADR-002-data-source-and-symbol-set.md)).
+
+**The two lines worth understanding before the rest.** `verify` asks whether the bytes on disk are the ones a published figure was computed from. `reproduce` asks whether that figure still comes out of them - it re-runs every payload committed under `docs/status/` using the command line each one recorded, and reports `IDENTICAL`, or drift with the reason. Expect **9 identical, 0 drifted** on a fresh clone, and drift as soon as you fetch again, because the series extends forward and the committed figures stay pinned to the snapshot they name.
+
+The three gates, which every change leaves green:
+
+```bash
+uv run ruff check src tests
+uv run python -m mypy --strict src tests
+uv run python -m pytest -q
+```
+
 ## 1. The environment
 
 ```

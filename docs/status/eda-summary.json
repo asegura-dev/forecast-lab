@@ -133,5 +133,19 @@
       "on_returns": -0.06566374060712218,
       "inflation": 0.11245829696623702
     }
+  },
+  "run": {
+    "command": "explore",
+    "argv": [
+      "explore",
+      "--target",
+      "XAUUSD",
+      "--timeframe",
+      "1H",
+      "--dir",
+      "data/reference",
+      "--json"
+    ],
+    "generated_at": "2026-09-09T19:20:32.279249+00:00"
   }
 }

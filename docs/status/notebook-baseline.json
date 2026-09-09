@@ -121,5 +121,19 @@
       ]
     }
   ],
-  "purged": 2
+  "purged": 2,
+  "run": {
+    "command": "baseline",
+    "argv": [
+      "baseline",
+      "--target",
+      "XAUUSD",
+      "--timeframe",
+      "1H",
+      "--dir",
+      "data/reference",
+      "--json"
+    ],
+    "generated_at": "2026-09-09T19:21:18.014926+00:00"
+  }
 }
