@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import ast
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -29,6 +30,8 @@ import pytest
 from typer.testing import CliRunner
 
 from forecast_lab.interfaces.cli import app
+from forecast_lab.research.models.catalogue import Availability
+from forecast_lab.research.models.catalogue import availability as real_availability
 
 #: The package source, for the tests that read the dashboard rather than trusting a list.
 SRC = Path(__file__).resolve().parents[2] / "src" / "forecast_lab"
@@ -133,7 +136,13 @@ def test_json_output_is_parseable(command: str, data_dir: Path) -> None:
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    # `result.stdout`, never `result.output`. The latter mixes stderr in, and this test read
+    # it for as long as it existed - so it was asserting something weaker than the contract:
+    # that a payload can be *found* in the combined stream, not that stdout carries one. On
+    # a machine where every estimator loads the two are identical, which is why it passed
+    # here for weeks and failed on the first Linux run, where the OpenMP runtime is absent
+    # and `verdict` says so before printing.
+    payload = json.loads(result.stdout)
     assert isinstance(payload, dict)
 
 
@@ -144,7 +153,7 @@ def test_align_json_reports_the_staleness_it_had_to_carry(data_dir: Path) -> Non
         app, ["align", "--target", "XAUUSD", "--timeframe", "1H", "--dir", str(data_dir), "--json"]
     )
 
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["target"] == "XAUUSD"
     assert payload["rows"] == BARS
     assert {c["symbol"] for c in payload["coverage"]} == {"SPX"}
@@ -162,7 +171,7 @@ def test_validate_json_carries_what_the_verdict_rests_on(data_dir: Path) -> None
     )
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     assert payload["models"], "no model was scored"
     for model in payload["models"]:
         assert set(model) >= {"flip_rate", "bars_held", "break_even", "clears_break_even"}
@@ -430,7 +439,7 @@ def test_the_payload_carries_every_key_the_dashboard_indexes(
     result = runner.invoke(app, arguments)
 
     assert result.exit_code == 0, result.output
-    payload = json.loads(result.output)
+    payload = json.loads(result.stdout)
     for path in DASHBOARD_KEYS[command]:
         _resolve(payload, path)
 
@@ -671,3 +680,55 @@ def test_reordering_a_list_is_not_an_addition() -> None:
     from forecast_lab.interfaces.cli import _only_additions
 
     assert not _only_additions([{"m": "a"}, {"m": "b"}], [{"m": "b"}, {"m": "a"}])
+
+
+# --- what `--json` promises on stdout ----------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_json_stdout_stays_parseable_when_an_estimator_cannot_be_loaded(
+    data_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--json` promises a payload on stdout, and a payload with a sentence in front of
+    it is not one.
+
+    This was broken and invisible. The CLI printed `LightGBM not run: <reason>` to stdout
+    immediately before the payload, `runner._payload_from` had been written to survive
+    exactly that, so the dashboard worked - and every estimator loads on the machine this
+    was developed on, so the line was never printed here at all. A Linux run without the
+    OpenMP runtime produced it on the first try.
+
+    Forced rather than waited for: the point of a contract test is that it does not depend
+    on which machine runs it.
+    """
+    from forecast_lab.interfaces import cli
+
+    def _one_missing() -> tuple[Availability, ...]:
+        # `real_availability`, not `cli.availability`: the name on the module is about to be
+        # this function, and calling it through there recurses until the stack gives out.
+        entries = real_availability()
+        broken = replace(
+            entries[0],
+            available=False,
+            reason="libgomp.so.1: cannot open shared object file",
+        )
+        return (broken, *entries[1:])
+
+    monkeypatch.setattr(cli, "availability", _one_missing)
+    # `verdict`, specifically. `train` and `validate` print this in their human branch, after
+    # the JSON one has already returned, so they were never at risk - and a first version of
+    # this test pointed at `train` and passed with the defect deliberately restored, which is
+    # the only way to find out that a check checks nothing.
+    result = CliRunner().invoke(
+        app,
+        [
+            "verdict", "--target", "XAUUSD", "--timeframe", "1H", "--dir", str(data_dir),
+            "--folds", "2", "--no-pca", "--reps", "50", "--json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    # `json.loads`, not a tolerant scan: the tolerance belongs in the reader of an arbitrary
+    # subprocess, not in the definition of what this command emits.
+    payload = json.loads(result.stdout)
+    assert payload["skill"], "the payload should still be there"

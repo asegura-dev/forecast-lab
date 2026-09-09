@@ -121,6 +121,19 @@ from forecast_lab.research import (
 app = typer.Typer(add_completion=False, no_args_is_help=True)
 console = Console()
 
+#: Diagnostics, which are not data. An estimator that could not be loaded is worth saying out
+#: loud, and saying it on **stdout** put a line of prose immediately before a `--json` payload:
+#:
+#:     LightGBM not run: libgomp.so.1: cannot open shared object file
+#:     { "symbol": "XAUUSD", ...
+#:
+#: `runner._payload_from` was written to survive exactly that, so the dashboard never broke and
+#: nothing on a developer's machine ever showed it - every estimator loads here. A Linux run
+#: without the OpenMP runtime showed it immediately, and the contract test failed as it should
+#: have: `--json` promises a payload on stdout, and a payload with a sentence in front of it is
+#: not one. An operator still sees these, because stderr reaches the terminal too.
+diagnostics = Console(stderr=True)
+
 #: Everything the manifest describes lives under here, and every recorded path is
 #: relative to it - so `reference/XAUUSD_1H.csv` and `raw/XAUUSD_1H.csv` stay distinct.
 DATA_ROOT = Path("data")
@@ -970,7 +983,9 @@ def train_command(
         # Never silent. A comparison that quietly omits a model is a comparison of a
         # different experiment than the one the table claims to describe.
         for entry in unavailable:
-            console.print(f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]")
+            diagnostics.print(
+                f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]"
+            )
     for name, why in failures:
         console.print(f"[yellow]{name} failed to fit:[/yellow] [dim]{why}[/dim]")
 
@@ -1210,7 +1225,9 @@ def validate_command(
     )
     for entry in entries:
         if not entry.available:
-            console.print(f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]")
+            diagnostics.print(
+                f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]"
+            )
 
     console.print("\n[bold]Folds[/bold]")
     console.print(_fold_table(scheme))
@@ -1597,7 +1614,9 @@ def verdict_command(
     scored: list[PooledScore] = []
     for entry in availability():
         if not entry.available:
-            console.print(f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]")
+            diagnostics.print(
+                f"[yellow]{entry.name} not run:[/yellow] [dim]{entry.reason}[/dim]"
+            )
             continue
         for variance in representations:
             try:

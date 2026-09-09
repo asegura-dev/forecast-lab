@@ -38,13 +38,22 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
+
+      - name: Install the OpenMP runtime
+        # LightGBM and XGBoost load native libraries that need libgomp. Without it they
+        # report themselves unavailable and the suite still passes - the code handles a
+        # missing estimator on purpose - but the run would then compare four models while
+        # saying six, which is a gate quietly covering less than it claims. A Linux run
+        # found this before CI did, by failing on the one command that printed the reason
+        # to stdout in front of its own `--json` payload.
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libgomp1
 
       - name: Sync the locked environment
         # `--extra dashboard` on purpose. The dashboard tests guard themselves with

@@ -1,5 +1,7 @@
 # forecast-lab
 
+[![gates](https://github.com/asegura-dev/forecast-lab/actions/workflows/gates.yml/badge.svg)](https://github.com/asegura-dev/forecast-lab/actions/workflows/gates.yml)
+
 **Quantitative research on short-horizon market direction.** A symbol-agnostic pipeline that measures what an experiment can actually resolve *before* it claims an edge.
 
 > Re-engineering of a postgraduate project (MSc in Data Science and Engineering, CUCEI, University of Guadalajara, 2025), originally carried out as a team notebook. See [Origin and scope](#origin-and-scope-of-the-re-analysis).

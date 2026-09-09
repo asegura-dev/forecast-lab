@@ -25,6 +25,31 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-09 - `--json` emits only JSON, and the test that should have said so
+
+The first CI run went red, which is what it was for. Reproduced in a Linux container rather than guessed at, and it found two defects and a warning.
+
+### Fixed
+
+- **`verdict` printed a diagnostic to stdout in front of its own payload.** When an estimator cannot be loaded the command says so - correctly, because a comparison that quietly omits a model describes a different experiment than the table claims. It said so on **stdout**, immediately before the `--json` payload:
+
+  ```
+  LightGBM not run: libgomp.so.1: cannot open shared object file
+  { "symbol": "XAUUSD", ...
+  ```
+
+  `--json` promises a payload on stdout, and a payload with a sentence in front of it is not one. Diagnostics now go to stderr, where an operator still sees them. `train` and `validate` print theirs after the JSON branch has returned, so they were never at risk - worth knowing, because a first version of the new test pointed at `train` and **passed with the defect deliberately restored**.
+- **The contract test read the wrong stream.** `json.loads(result.output)` mixes stderr in, so it asserted that a payload could be *found* in the combined output rather than that stdout carries one. On a machine where all six estimators load the two are identical, which is why it passed here for weeks. It reads `result.stdout` now, in all four places.
+
+### Changed
+
+- **CI installs `libgomp1`.** Without it LightGBM and XGBoost report themselves unavailable and the suite still passes, because a missing estimator is handled on purpose - but the run would compare four models while saying six, which is a gate quietly covering less than it claims.
+- **`actions/checkout@v5` and `astral-sh/setup-uv@v6`**, the previous majors having been flagged as running on a deprecated Node.
+
+### Verified
+
+Three gates green in a Linux container with no `data/` and no OpenMP runtime - the exact conditions that turned the badge red: **501 passed, 18 deselected**.
+
 ## 2026-09-09 - CI, and three tests that only passed on one machine
 
 ### Added
