@@ -268,19 +268,28 @@ def test_the_real_cli_answers_a_help_request() -> None:
         [*CLI, "--help"], capture_output=True, text=True, encoding="utf-8"
     )
 
+    # Only the exit code. What the help *says* is asserted by introspection below, because
+    # this text is a rich panel wrapped to the terminal width.
     assert completed.returncode == 0
-    assert "verdict" in completed.stdout
+
+
+def _cli_commands() -> dict[str, Any]:
+    """Every command Typer built, as click objects rather than as rendered text."""
+    from typer.main import get_command
+
+    from forecast_lab.interfaces.cli import app
+
+    group = get_command(app)
+    return dict(getattr(group, "commands", {}))
 
 
 @pytest.mark.unit
 def test_every_allowed_command_exists_in_the_cli() -> None:
     """The allow-list cannot drift from the application it is a list of."""
-    completed = subprocess.run(
-        [*CLI, "--help"], capture_output=True, text=True, encoding="utf-8"
-    )
+    available = _cli_commands()
 
     for command in sorted(READ_ONLY | WRITING | TERMINAL_ONLY):
-        assert command in completed.stdout, f"{command} is in the runner but not in the CLI"
+        assert command in available, f"{command} is in the runner but not in the CLI"
 
 
 @pytest.mark.unit
@@ -361,13 +370,26 @@ def test_an_option_that_writes_is_refused_even_on_an_allowed_command() -> None:
 
 @pytest.mark.unit
 def test_the_forbidden_options_are_options_the_cli_really_has() -> None:
-    """A guard against an option that no longer exists is a guard against nothing."""
-    completed = subprocess.run(
-        [*CLI, "explore", "--help"], capture_output=True, text=True, encoding="utf-8"
-    )
+    """A guard against an option that no longer exists is a guard against nothing.
+
+    Asked of the parser, not of `--help`. This read the rendered help text and passed
+    everywhere it was ever run until a CI runner rendered the same panel at eighty columns,
+    where `--figures` wraps - so the test reported that a guarded option had been removed
+    from the CLI, which was false.
+
+    ADR-005 sec. 3 says exactly this about scraping a rich table: the widths come from the
+    terminal, so what looks like a stable string is not one. The rule turned out to have a
+    hole in the test suite that enforces it.
+    """
+    declared = {
+        option
+        for command in _cli_commands().values()
+        for parameter in command.params
+        for option in getattr(parameter, "opts", ())
+    }
 
     for option in FORBIDDEN_OPTIONS:
-        assert option in completed.stdout, f"{option} is guarded but not in the CLI"
+        assert option in declared, f"{option} is guarded but not in the CLI"
 
 
 @pytest.mark.unit

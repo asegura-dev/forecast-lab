@@ -105,10 +105,16 @@ def test_the_application_is_not_collapsed_into_a_single_command() -> None:
     listing subcommands and this fails.
     """
     result = runner.invoke(app, ["--help"])
-
     assert result.exit_code == 0
+
+    # Asked of the parser rather than of the rendered panel, which rich wraps to the
+    # terminal width - a sibling test scraped that text and failed on a CI runner at eighty
+    # columns, reporting an option as missing that was there all along.
+    from typer.main import get_command
+
+    registered = dict(getattr(get_command(app), "commands", {}))
     for command in COMMANDS:
-        assert command in result.output, f"{command} is missing from --help"
+        assert command in registered, f"{command} is missing from the CLI"
 
 
 @pytest.mark.unit

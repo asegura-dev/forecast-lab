@@ -25,6 +25,21 @@ Notable changes to **forecast-lab**, newest first. This is a research lab rather
 - **The console script cannot be assumed executable.** Smart App Control blocks the unsigned `forecast-lab.exe`, and `uv sync` rewriting it was enough to trigger it. `entry_point()` now falls back to `python -m` when the spawn is refused, and remembers. Without this the dashboard would have been broken on the machine this project is developed on while every other gate stayed green.
 - **Tables are Markdown, not `st.dataframe`.** Both Streamlit table widgets serialise through Arrow, and `pyarrow`'s native library is blocked by the same policy - measured across five retries, it does not clear the way a `.pyd` does.
 
+## 2026-09-09 - Four tests scraped rendered help, which this project forbids
+
+The second red run named its own cause, once the workflow was made to say which test fell.
+
+### Fixed
+
+- **`test_the_forbidden_options_are_options_the_cli_really_has` read `--help` as text.** It asserted `"--figures" in completed.stdout`, and passed everywhere it was ever run until a CI runner rendered the same panel at a width where the option column wraps - so it reported that a guarded option had been removed from the CLI, which was false.
+
+  [ADR-005 sec. 3](docs/adr/ADR-005-the-dashboard-runs-the-cli.md) says exactly this about scraping a rich table: the widths come from the terminal, so what looks like a stable string is not one. **The rule had a hole in the test suite that enforces it.** Three sibling tests had the same shape and are fixed with it.
+- **They ask the parser now**, through `typer.main.get_command(app)` - the commands and their options as click objects rather than as rendered text. One subprocess check remains, asserting only that the entry point resolves and exits 0, which is the one thing a subprocess can tell you that introspection cannot.
+
+### Added
+
+- **CI echoes pytest's summary back as workflow annotations.** The first two failing runs reported only `process completed with exit code 1`; downloading the log needs repository admin, so a contributor on a fork could not see which test fell - and neither could three attempts at reproducing it in a Linux container, all of which came back green: no `data/`, no OpenMP runtime, with OpenMP, and on the same Python 3.12.14 the runner pins. **A gate that fails without saying why costs more time than it saves.**
+
 ## 2026-09-09 - `--json` emits only JSON, and the test that should have said so
 
 The first CI run went red, which is what it was for. Reproduced in a Linux container rather than guessed at, and it found two defects and a warning.
