@@ -72,4 +72,16 @@ jobs:
         # `network` and `slow` are deselected by `addopts` in pyproject.toml: one hits
         # Dukascopy's CDN and the other fits models to render a dashboard page. Both are
         # opt-in locally and neither belongs in a gate that must be deterministic.
-        run: uv run python -m pytest -q
+        #
+        # The summary is echoed back as workflow annotations on failure. A red badge whose
+        # only public detail is "process completed with exit code 1" tells a reader - and
+        # anyone without repository admin, who cannot download the log at all - nothing about
+        # which test fell. This surfaces it in the checks UI and through the API.
+        run: |
+          set -o pipefail
+          if ! uv run python -m pytest -q --tb=short 2>&1 | tee pytest.log; then
+            sed -n '/short test summary/,$p' pytest.log | while IFS= read -r line; do
+              echo "::error::${line}"
+            done
+            exit 1
+          fi
